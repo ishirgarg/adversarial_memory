@@ -22,7 +22,7 @@ class NoHistoryMemorySystem:
         return ""
 
     def update_memory(
-        self, prompt: Prompt, response: LLMResponse, conversation: Conversation
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         """
         No-op: This memory system stores no memory internally.
@@ -38,7 +38,7 @@ class SimpleHistoryMemorySystem:
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
-        Retrieve conversation history from mem0.
+        Retrieve conversation history as memories.
         """
         if not conversation.messages:
             return ""
@@ -49,14 +49,12 @@ class SimpleHistoryMemorySystem:
             history_parts.append(f"User: {msg.prompt}")
             history_parts.append(f"Assistant: {msg.response}")
 
-        # Prepend history to current prompt
+        # Return just the history (memories), not including current prompt
         history_text = "\n".join(history_parts)
-        context = f"{history_text}\nUser: {prompt}"
-
-        return context
+        return history_text
 
     def update_memory(
-        self, prompt: Prompt, response: LLMResponse, conversation: Conversation
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         """
         No-op: This memory system stores no memory internally.
@@ -101,7 +99,7 @@ class Mem0MemorySystem:
         return memories_str
 
     def update_memory(
-        self, prompt: Prompt, response: LLMResponse, conversation: Conversation
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         """
         Update mem0 memory by adding the conversation to memory.
@@ -112,7 +110,7 @@ class Mem0MemorySystem:
             conversation: The conversation history (includes the new message)
         """
         # Use conversation_id as user_id for mem0
-        user_id = str(conversation.conversation_id)
+        user_id = str(conversation_history.conversation_id)
         messages = [
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": response},

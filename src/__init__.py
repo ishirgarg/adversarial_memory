@@ -14,6 +14,7 @@ from .types import (
     Conversation,
     LLM,
     MemorySystem,
+    EvaluationPromptTemplate,
 )
 
 # LLM interface
@@ -33,6 +34,21 @@ from .memory import (
 # Chat systems
 from .chat import (
     ChatSystem,
+)
+
+# Dataset and Evaluation
+from .dataset import (
+    ChatDataset,
+    ConversationData,
+)
+from .evaluation import (
+    Evaluator,
+    EvaluationResult,
+    EvaluationSummary,
+)
+from .tokenizer import (
+    EvaluationTokenizer,
+    TiktokenTokenizer,
 )
 
 __all__ = [
@@ -56,4 +72,16 @@ __all__ = [
     "Mem0MemorySystem",
     # Chat
     "ChatSystem",
+    # Dataset
+    "ChatDataset",
+    "ConversationData",
+    # Evaluation
+    "Evaluator",
+    "EvaluationResult",
+    "EvaluationSummary",
+    # Types
+    "EvaluationPromptTemplate",
+    # Tokenizer
+    "EvaluationTokenizer",
+    "TiktokenTokenizer",
 ]

@@ -85,7 +85,7 @@ class MemorySystem(Protocol):
         ...
 
     def update_memory(
-        self, prompt: Prompt, response: LLMResponse, conversation: Conversation
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         """
         Update internal memory state based on the prompt and response.
@@ -94,5 +94,28 @@ class MemorySystem(Protocol):
             prompt: The prompt that was sent
             response: The response received
             conversation: The conversation history
+        """
+        ...
+
+
+@runtime_checkable
+class EvaluationPromptTemplate(Protocol):
+    """
+    Protocol for prompt templates used in evaluation.
+
+    Defines how to format the final prompt given query, memories, and conversation history.
+    """
+
+    def format(self, query: str, memories: str, conversation: Conversation) -> str:
+        """
+        Format a prompt for evaluation.
+
+        Args:
+            query: The current user query
+            memories: The memories retrieved from the memory system
+            conversation: The conversation history
+
+        Returns:
+            The formatted prompt string to send to the LLM
         """
         ...

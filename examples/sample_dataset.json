@@ -1,0 +1,26 @@
+{
+  "conversations": [
+    {
+      "queries": [
+        "What is the capital of France?",
+        "What is the population of that city?",
+        "What country is it in?"
+      ]
+    },
+    {
+      "queries": [
+        "My name is Alice",
+        "What is my name?",
+        "I like pizza",
+        "What do I like?"
+      ]
+    },
+    {
+      "queries": [
+        "Tell me about Python programming",
+        "What are its main features?",
+        "Give me an example"
+      ]
+    }
+  ]
+}
