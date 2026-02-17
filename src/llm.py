@@ -7,6 +7,7 @@ Provides simple LLM implementations that follow the LLM protocol.
 from typing import Any
 from .types import LLMResponse
 import requests
+from openai import OpenAI
 
 
 class OpenAILLM:
@@ -31,10 +32,19 @@ class OpenAILLM:
     def query(self, prompt: str, **kwargs: Any) -> LLMResponse:
         """
         Query OpenAI API.
-        TODO: Implement actual OpenAI API call.
         """
-        # Skeleton implementation
-        raise NotImplementedError("OpenAI API implementation pending")
+        client = OpenAI(api_key=self.api_key)
+        
+        # Merge default kwargs with provided kwargs
+        request_kwargs = {**self.default_kwargs, **kwargs}
+        
+        response = client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            **request_kwargs,
+        )
+        
+        return response.choices[0].message.content or ""
 
 
 class AnthropicLLM:

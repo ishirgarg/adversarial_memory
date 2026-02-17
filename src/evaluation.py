@@ -28,6 +28,8 @@ class EvaluationResult:
     responses: List[LLMResponse]
     total_input_tokens: int
     total_output_tokens: int
+    graded_input_tokens: int
+    graded_output_tokens: int
     total_time: float
     total_retrieval_time: float
 
@@ -95,9 +97,11 @@ class Evaluator:
         total_retrieval_time = 0.0
         total_input_tokens = 0
         total_output_tokens = 0
+        graded_input_tokens = 0
+        graded_output_tokens = 0
 
         # Process each query in the conversation
-        for query in conversation_data.queries:
+        for query, should_grade in conversation_data.queries:
             # Get current conversation state
             conversation = self.chat_system.get_conversation(conv_id)
             if conversation is None:
@@ -111,13 +115,19 @@ class Evaluator:
             prompt = self.prompt_template.format(query, memories, conversation)
 
             # Count input tokens before sending
-            total_input_tokens += self.tokenizer.tokenized_length(prompt)
+            input_tokens = self.tokenizer.tokenized_length(prompt)
+            total_input_tokens += input_tokens
+            if should_grade:
+                graded_input_tokens += input_tokens
 
             # Use ChatSystem.send_message to handle the query and update conversation
             response = self.chat_system.send_message(prompt, conv_id)
 
             # Count output tokens
-            total_output_tokens += self.tokenizer.tokenized_length(response)
+            output_tokens = self.tokenizer.tokenized_length(response)
+            total_output_tokens += output_tokens
+            if should_grade:
+                graded_output_tokens += output_tokens
 
             # Update memory system with the updated conversation
             self.memory_system.update_memory(query, response, conversation)
@@ -133,6 +143,8 @@ class Evaluator:
             responses=responses,
             total_input_tokens=total_input_tokens,
             total_output_tokens=total_output_tokens,
+            graded_input_tokens=graded_input_tokens,
+            graded_output_tokens=graded_output_tokens,
             total_time=total_time,
             total_retrieval_time=total_retrieval_time,
         )

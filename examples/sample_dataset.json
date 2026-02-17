@@ -2,24 +2,24 @@
   "conversations": [
     {
       "queries": [
-        "What is the capital of France?",
-        "What is the population of that city?",
-        "What country is it in?"
+        {"query": "What is the capital of France?", "grade": true},
+        {"query": "What is the population of that city?", "grade": true},
+        {"query": "What country is it in?", "grade": false}
       ]
     },
     {
       "queries": [
-        "My name is Alice",
-        "What is my name?",
-        "I like pizza",
-        "What do I like?"
+        {"query": "My name is Alice", "grade": false},
+        {"query": "What is my name?", "grade": true},
+        {"query": "I like pizza", "grade": false},
+        {"query": "What do I like?", "grade": true}
       ]
     },
     {
       "queries": [
-        "Tell me about Python programming",
-        "What are its main features?",
-        "Give me an example"
+        {"query": "Tell me about Python programming", "grade": false},
+        {"query": "What are its main features?", "grade": true},
+        {"query": "Give me an example", "grade": true}
       ]
     }
   ]

@@ -5,7 +5,7 @@ Dataset classes for evaluating memory systems.
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 from .types import Prompt
 
@@ -13,12 +13,10 @@ from .types import Prompt
 @dataclass
 class ConversationData:
     """
-    Represents a conversation in the dataset.
-
-    Contains only user queries - responses will be generated during evaluation.
+    Represents a conversation in the dataset, and booleans indicating whether the query should be graded - responses will be generated during evaluation.
     """
 
-    queries: List[Prompt]
+    queries: List[Tuple[Prompt, bool]]
 
     def __len__(self) -> int:
         """Return the number of queries in this conversation."""
@@ -33,16 +31,18 @@ class ChatDataset:
     {
         "conversations": [
             {
-                "queries": ["query1", "query2", "query3"]
-            },
-            {
-                "queries": ["query1", "query2"]
+                "queries": [
+                    {"query": "query1", "grade": true},
+                    {"query": "query2", "grade": false}
+                ]
             }
         ]
     }
 
-    Each conversation is just a list of queries. Conversation IDs are assigned
-    during evaluation by the evaluator.
+    Each query must be an object with "query" (string) and "grade" (boolean) fields.
+    The "grade" field indicates whether the response should be graded.
+
+    Conversation IDs are assigned during evaluation by the evaluator.
     """
 
     def __init__(self, conversations: List[ConversationData]):
@@ -67,7 +67,20 @@ class ChatDataset:
 
         Raises:
             FileNotFoundError: If the file doesn't exist
-            KeyError: If queries are missing
+            KeyError: If queries or grade are missing
+            ValueError: If query format is invalid
+
+        The dataset format requires each query to be an object with "query" and "grade":
+        {
+            "conversations": [
+                {
+                    "queries": [
+                        {"query": "query1", "grade": true},
+                        {"query": "query2", "grade": false}
+                    ]
+                }
+            ]
+        }
         """
         path = Path(file_path)
         with open(path, "r", encoding="utf-8") as f:
@@ -75,8 +88,24 @@ class ChatDataset:
 
         conversations = []
         for conv_data in data["conversations"]:
-            queries = conv_data["queries"]
-            conversations.append(ConversationData(queries=queries))
+            query_tuples = []
+            for query_item in conv_data["queries"]:
+                if not isinstance(query_item, dict):
+                    raise ValueError(
+                        f"Query must be an object with 'query' and 'grade' fields. "
+                        f"Got: {type(query_item).__name__}"
+                    )
+                
+                if "query" not in query_item:
+                    raise KeyError("Query object must have 'query' field")
+                if "grade" not in query_item:
+                    raise KeyError("Query object must have 'grade' field")
+                
+                query = query_item["query"]
+                grade = bool(query_item["grade"])
+                query_tuples.append((query, grade))
+            
+            conversations.append(ConversationData(queries=query_tuples))
 
         return cls(conversations)
 
@@ -92,12 +121,41 @@ class ChatDataset:
             ChatDataset instance
 
         Raises:
-            KeyError: If queries are missing
+            KeyError: If queries or grade are missing
+            ValueError: If query format is invalid
+
+        The dataset format requires each query to be an object with "query" and "grade":
+        {
+            "conversations": [
+                {
+                    "queries": [
+                        {"query": "query1", "grade": true},
+                        {"query": "query2", "grade": false}
+                    ]
+                }
+            ]
+        }
         """
         conversations = []
         for conv_data in data["conversations"]:
-            queries = conv_data["queries"]
-            conversations.append(ConversationData(queries=queries))
+            query_tuples = []
+            for query_item in conv_data["queries"]:
+                if not isinstance(query_item, dict):
+                    raise ValueError(
+                        f"Query must be an object with 'query' and 'grade' fields. "
+                        f"Got: {type(query_item).__name__}"
+                    )
+                
+                if "query" not in query_item:
+                    raise KeyError("Query object must have 'query' field")
+                if "grade" not in query_item:
+                    raise KeyError("Query object must have 'grade' field")
+                
+                query = query_item["query"]
+                grade = bool(query_item["grade"])
+                query_tuples.append((query, grade))
+            
+            conversations.append(ConversationData(queries=query_tuples))
 
         return cls(conversations)
 

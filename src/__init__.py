@@ -50,6 +50,10 @@ from .tokenizer import (
     EvaluationTokenizer,
     TiktokenTokenizer,
 )
+from .prompt_templates import (
+    SimplePromptTemplate,
+    ConversationHistoryPromptTemplate,
+)
 
 __all__ = [
     # Types
@@ -84,4 +88,7 @@ __all__ = [
     # Tokenizer
     "EvaluationTokenizer",
     "TiktokenTokenizer",
+    # Prompt Templates
+    "SimplePromptTemplate",
+    "ConversationHistoryPromptTemplate",
 ]
