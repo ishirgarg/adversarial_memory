@@ -40,6 +40,14 @@ class Conversation:
 class LLM(Protocol):
     """Protocol for LLM providers."""
 
+    def __init__(
+        self, model: str, max_tokens: int, temperature: float, **default_kwargs: Any
+    ):
+        """
+        Initialize the LLM.
+        """
+        ...
+
     def query(self, prompt: str, **kwargs: Any) -> LLMResponse:
         """
         Query the LLM with a prompt.
@@ -63,9 +71,7 @@ class MemorySystem(Protocol):
     The memory system tracks all memory internally and does not expose state externally.
     """
 
-    def create_context(
-        self, prompt: Prompt, conversation: Conversation
-    ) -> PromptContext:
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
         Create a context from the prompt using internal memory state.
 
@@ -74,7 +80,7 @@ class MemorySystem(Protocol):
             conversation: The conversation history
 
         Returns:
-            The context to be used for the LLM
+            The context string to be used for the LLM
         """
         ...
 

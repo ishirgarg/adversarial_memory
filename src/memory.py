@@ -5,7 +5,8 @@ This module provides base memory system implementations. Each system manages
 its own internal state (both global and per-conversation memory).
 """
 
-from .types import Conversation, LLMResponse, Prompt, PromptContext
+from .types import Conversation, LLMResponse, Prompt
+import mem0
 
 
 class NoHistoryMemorySystem:
@@ -14,20 +15,11 @@ class NoHistoryMemorySystem:
     Stores no memory internally.
     """
 
-    def create_context(
-        self, prompt: Prompt, conversation: Conversation
-    ) -> PromptContext:
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
         Return the prompt as-is without any conversation history.
-
-        Args:
-            prompt: The current prompt
-            conversation: The conversation history (ignored)
-
-        Returns:
-            The prompt unchanged
         """
-        return prompt
+        return ""
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation: Conversation
@@ -44,22 +36,12 @@ class SimpleHistoryMemorySystem:
     Stores no memory internally - just uses the conversation history provided.
     """
 
-    def create_context(
-        self, prompt: Prompt, conversation: Conversation
-    ) -> PromptContext:
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
-        Create context by prepending conversation history to the prompt.
-
-        Args:
-            prompt: The current prompt
-            conversation: The conversation history
-
-        Returns:
-            Context with conversation history prepended to the prompt
+        Retrieve conversation history from mem0.
         """
         if not conversation.messages:
-            # No history, just return the prompt
-            return prompt
+            return ""
 
         # Format conversation history
         history_parts = []
@@ -81,3 +63,58 @@ class SimpleHistoryMemorySystem:
         All memory comes from the conversation history.
         """
         pass
+
+
+class Mem0MemorySystem:
+    """
+    Memory system using mem0 (https://github.com/mem0ai/mem0).
+
+    Mem0 provides intelligent memory retrieval and storage, using semantic search
+    to find relevant memories and automatically extracting key information.
+    """
+
+    def __init__(self, memory_limit: int, **mem0_kwargs):
+        """
+        Initialize Mem0 memory system.
+
+        Args:
+            memory_limit: Maximum number of relevant memories to retrieve (default: 3)
+            **mem0_kwargs: Additional arguments to pass to mem0.Memory() constructor
+                (e.g., vector_store, llm_config, etc.)
+        """
+
+        self.memory = mem0.Memory(**mem0_kwargs)
+        self.memory_limit = memory_limit
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        """
+        Retrieve relevant memories from mem0.
+        """
+        user_id = str(conversation.conversation_id)
+        # Search for relevant memories
+        relevant_memories = self.memory.search(
+            query=prompt, user_id=user_id, limit=self.memory_limit
+        )
+        memories_str = "\n".join(
+            f"- {entry['memory']}" for entry in relevant_memories["results"]
+        )
+        return memories_str
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation: Conversation
+    ) -> None:
+        """
+        Update mem0 memory by adding the conversation to memory.
+
+        Args:
+            prompt: The prompt that was sent
+            response: The response received
+            conversation: The conversation history (includes the new message)
+        """
+        # Use conversation_id as user_id for mem0
+        user_id = str(conversation.conversation_id)
+        messages = [
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": response},
+        ]
+        self.memory.add(messages, user_id=user_id)

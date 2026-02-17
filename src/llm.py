@@ -15,9 +15,7 @@ class OpenAILLM:
     Skeleton - to be implemented with actual API calls.
     """
 
-    def __init__(
-        self, api_key: str, model: str = "gpt-3.5-turbo", **default_kwargs: Any
-    ):
+    def __init__(self, api_key: str, model: str, **default_kwargs: Any):
         """
         Initialize OpenAI LLM.
 
@@ -48,7 +46,7 @@ class AnthropicLLM:
     def __init__(
         self,
         api_key: str,
-        model: str = "claude-3-sonnet-20240229",
+        model: str,
         **default_kwargs: Any,
     ):
         """
@@ -79,10 +77,10 @@ class OllamaLLM:
 
     def __init__(
         self,
-        model: str = "gemma2:1b",
-        base_url: str = "http://localhost:11434",
-        max_tokens: int = 512,
-        temperature: float = 0.7,
+        model: str,
+        base_url: str,
+        max_tokens: int,
+        temperature: float,
         **default_kwargs: Any,
     ):
         """

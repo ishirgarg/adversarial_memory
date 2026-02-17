@@ -27,6 +27,7 @@ from .llm import (
 from .memory import (
     NoHistoryMemorySystem,
     SimpleHistoryMemorySystem,
+    Mem0MemorySystem,
 )
 
 # Chat systems
@@ -52,6 +53,7 @@ __all__ = [
     # Memory
     "NoHistoryMemorySystem",
     "SimpleHistoryMemorySystem",
+    "Mem0MemorySystem",
     # Chat
     "ChatSystem",
 ]
