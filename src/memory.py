@@ -71,24 +71,27 @@ class Mem0MemorySystem:
     to find relevant memories and automatically extracting key information.
     """
 
-    def __init__(self, memory_limit: int, **mem0_kwargs):
+    def __init__(self, memory_limit: int, shared_user_id: str | None = None, **mem0_kwargs):
         """
         Initialize Mem0 memory system.
 
         Args:
             memory_limit: Maximum number of relevant memories to retrieve (default: 3)
+            shared_user_id: Optional shared user_id to use across all conversations.
+                If None, uses conversation_id as user_id (default behavior).
             **mem0_kwargs: Additional arguments to pass to mem0.Memory() constructor
                 (e.g., vector_store, llm_config, etc.)
         """
 
         self.memory = mem0.Memory(**mem0_kwargs)
         self.memory_limit = memory_limit
+        self.shared_user_id = shared_user_id
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
         Retrieve relevant memories from mem0.
         """
-        user_id = str(conversation.conversation_id)
+        user_id = self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
         # Search for relevant memories
         relevant_memories = self.memory.search(
             query=prompt, user_id=user_id, limit=self.memory_limit
@@ -109,8 +112,8 @@ class Mem0MemorySystem:
             response: The response received
             conversation: The conversation history (includes the new message)
         """
-        # Use conversation_id as user_id for mem0
-        user_id = str(conversation_history.conversation_id)
+        # Use shared_user_id if provided, otherwise use conversation_id
+        user_id = self.shared_user_id if self.shared_user_id is not None else str(conversation_history.conversation_id)
         messages = [
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": response},
