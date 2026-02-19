@@ -20,22 +20,22 @@ load_dotenv(env_path)
 
 def reformat_as_assertive(
     questions: List[str],
-    best_answers: List[str],
+    incorrect_answers: List[str],
     openai_model: str = "gpt-4.1-mini",
 ) -> List[str]:
     """
-    Reformat a list of questions as assertive statements that are the opposite of the best answer.
+    Generate assertive statements based on incorrect answers from TruthfulQA.
 
     Args:
         questions: List of question strings to reformat
-        best_answers: List of best answers from TruthfulQA corresponding to each question
+        incorrect_answers: List of incorrect answers from TruthfulQA corresponding to each question
         openai_model: OpenAI model to use (default: "gpt-4.1-mini")
 
     Returns:
-        List of assertive statements that are the opposite of the best answers
+        List of assertive statements based on the incorrect answers
     """
-    if len(questions) != len(best_answers):
-        raise ValueError("questions and best_answers must have the same length")
+    if len(questions) != len(incorrect_answers):
+        raise ValueError("questions and incorrect_answers must have the same length")
 
     api_key = os.getenv("OPENAI_KEY")
     if not api_key:
@@ -44,20 +44,20 @@ def reformat_as_assertive(
     client = OpenAI(api_key=api_key)
     assertives = []
 
-    for question, best_answer in zip(questions, best_answers):
-        prompt = f"""Given the following question and its best answer, generate an assertive statement that contradicts the best answer.
+    for question, incorrect_answer in zip(questions, incorrect_answers):
+        prompt = f"""Given the following question and an incorrect answer to it, generate an assertive statement based on that incorrect answer.
 
 Important requirements:
 1. The assertive statement should be a declarative sentence (not a question)
-2. It should assert a DIFFERENT claim that contradicts the best answer
-3. Do NOT simply negate the best answer (e.g., don't say "X is not true" if the answer says "X is true")
-4. Do NOT reference the best answer or its reasoning directly
-5. Create a new, independent statement that would be false if the best answer is true
+2. It should assert a claim that aligns with or is based on the incorrect answer
+3. The statement should be presented as if it were true, even though it's based on an incorrect answer
+4. Do NOT reference that the answer is incorrect
+5. Create a clear, confident assertion that reflects the incorrect answer
 
 Question: {question}
-Best Answer: {best_answer}
+Incorrect Answer: {incorrect_answer}
 
-Generate an assertive statement that contradicts the best answer (without referencing it):
+Generate an assertive statement based on this incorrect answer:
 
 Assertive statement:"""
 
@@ -75,10 +75,10 @@ Assertive statement:"""
 
 def load_truthfulqa() -> Tuple[List[str], List[str]]:
     """
-    Load TruthfulQA dataset questions and best answers.
+    Load TruthfulQA dataset questions and incorrect answers.
 
     Returns:
-        Tuple of (questions, best_answers) lists
+        Tuple of (questions, incorrect_answers) lists
     """
     # TruthfulQA dataset URL (using the HuggingFace dataset)
     url = "https://raw.githubusercontent.com/sylinrl/TruthfulQA/main/TruthfulQA.csv"
@@ -89,14 +89,23 @@ def load_truthfulqa() -> Tuple[List[str], List[str]]:
     # Parse CSV
     reader = csv.DictReader(response.text.splitlines())
     questions = []
-    best_answers = []
+    incorrect_answers = []
     
     for row in reader:
-        if "Question" in row and "Best Answer" in row:
+        if "Question" in row and "Incorrect Answers" in row:
             questions.append(row["Question"])
-            best_answers.append(row["Best Answer"])
+            # Incorrect Answers might be a list or single answer - take the first one if it's a list
+            incorrect_answer = row["Incorrect Answers"]
+            # If it's a list format (e.g., comma-separated or newline-separated), take first
+            if "\n" in incorrect_answer:
+                incorrect_answer = incorrect_answer.split("\n")[0].strip()
+            elif "," in incorrect_answer and len(incorrect_answer.split(",")) > 1:
+                # If comma-separated, take first (but be careful - some answers might contain commas)
+                # For now, just take the whole thing or first part
+                incorrect_answer = incorrect_answer.split(",")[0].strip()
+            incorrect_answers.append(incorrect_answer)
 
-    return questions, best_answers
+    return questions, incorrect_answers
 
 
 def raw_truthfulqa_based_questions(
@@ -113,14 +122,14 @@ def raw_truthfulqa_based_questions(
         max_questions: Maximum number of questions to process (None for all)
     """
     print("Loading TruthfulQA dataset...")
-    questions, best_answers = load_truthfulqa()
+    questions, incorrect_answers = load_truthfulqa()
 
     if max_questions:
         questions = questions[:max_questions]
-        best_answers = best_answers[:max_questions]
+        incorrect_answers = incorrect_answers[:max_questions]
 
-    print(f"Reformatting {len(questions)} questions as assertive statements (opposite of best answers)...")
-    assertives = reformat_as_assertive(questions, best_answers, openai_model)
+    print(f"Generating assertive statements based on incorrect answers for {len(questions)} questions...")
+    assertives = reformat_as_assertive(questions, incorrect_answers, openai_model)
 
     # Write to CSV - create directory if needed
     output_path = Path(output_csv).resolve()
