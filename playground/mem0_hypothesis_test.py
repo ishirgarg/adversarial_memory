@@ -202,7 +202,7 @@ def main():
     os.environ["OPENAI_API_KEY"] = api_key
     
     llm = OpenAILLM(api_key=api_key, model="gpt-4o-mini")
-    memory_system = Mem0MemorySystem(memory_limit=2)
+    memory_system = Mem0MemorySystem(num_memories=2)
     prompt_template = SimplePromptTemplate()
     tokenizer = TiktokenTokenizer()
     
