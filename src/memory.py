@@ -125,7 +125,7 @@ class Mem0MemorySystem:
         user_id = self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
         # Search for relevant memories
         relevant_memories = self.memory.search(
-            query=prompt, user_id=user_id, limit=self.memory_limit
+            query=prompt, user_id=user_id, limit=self.num_memories
         )
         memories_str = "\n".join(
             f"- {entry['memory']}" for entry in relevant_memories["results"]

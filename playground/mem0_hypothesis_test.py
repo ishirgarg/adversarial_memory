@@ -10,11 +10,12 @@ For each example:
 Records full traces and summary traces using the Evaluator interface.
 """
 
+import argparse
 import csv
 import json
 import sys
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -64,19 +65,34 @@ def load_locomo_prompts(num_prompts: int = 10) -> List[str]:
     return fake_prompts[:num_prompts]
 
 
-def load_hypothesis_data(csv_path: Path, max_examples: int = 10) -> List[Dict[str, str]]:
-    """Load hypothesis contamination data from CSV."""
+def load_hypothesis_data(csv_path: Path, max_examples: int = 10, use_essays: bool = False) -> List[Dict[str, str]]:
+    """
+    Load hypothesis contamination data from CSV.
+    
+    Args:
+        csv_path: Path to the CSV file
+        max_examples: Maximum number of examples to load
+        use_essays: If True, load essays from CSV (requires 'essay' column)
+    
+    Returns:
+        List of example dictionaries with question, assertive, implication_question, and optionally essay
+    """
     examples = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for i, row in enumerate(reader):
             if i >= max_examples:
                 break
-            examples.append({
+            example = {
                 "question": row["question"],
                 "assertive": row["assertive"],
                 "implication_question": row["implication_question"],
-            })
+            }
+            if use_essays:
+                if "essay" not in row:
+                    raise ValueError(f"CSV file {csv_path} does not have 'essay' column. Cannot use --use-essays flag.")
+                example["essay"] = row["essay"]
+            examples.append(example)
     return examples
 
 
@@ -107,8 +123,10 @@ def run_single_example(
     memory_system.shared_user_id = shared_user_id
     
     # Construct the dataset with all three conversations
-    # Step 1: First assertion (conversation 1)
-    conv1_queries = [(example["assertive"], False)]
+    # Step 1: First assertion (or essay if available) (conversation 1)
+    # Use essay if available, otherwise use assertive
+    first_input = example.get("essay", example["assertive"])
+    conv1_queries = [(first_input, False)]
     conv1_data = ConversationData(queries=conv1_queries)
     
     # Step 2: New conversation with 2 LOCOMO prompts (conversation 2)
@@ -176,18 +194,59 @@ def run_single_example(
         "example": example,
         "full_traces": full_traces_dict,
         "summary_trace": summary_trace,
+        "first_assertion_response": first_trace.response,  # For CSV output
     }
 
 
 def main():
     """Main function to run the hypothesis contamination test."""
+    parser = argparse.ArgumentParser(
+        description="Test mem0 with hypothesis contamination dataset"
+    )
+    parser.add_argument(
+        "--use-essays",
+        action="store_true",
+        help="Use essays instead of just false assertions (requires essay column in CSV)"
+    )
+    parser.add_argument(
+        "--max-examples",
+        type=int,
+        default=10,
+        help="Maximum number of examples to process (default: 10)"
+    )
+    parser.add_argument(
+        "--csv-input",
+        type=str,
+        default=None,
+        help="Path to input CSV file (default: datasets/truthfulqa_implications.csv)"
+    )
+    parser.add_argument(
+        "--essays-csv",
+        type=str,
+        default=None,
+        help="Path to CSV file with essays (default: datasets/truthfulqa_implications_essays.csv)"
+    )
+    
+    args = parser.parse_args()
+    
     # Load data
     project_root = Path(__file__).parent.parent
-    csv_path = project_root / "datasets" / "truthfulqa_implications.csv"
+    
+    # Determine input CSV path
+    if args.csv_input:
+        csv_path = Path(args.csv_input)
+    elif args.use_essays and args.essays_csv:
+        csv_path = Path(args.essays_csv)
+    elif args.use_essays:
+        csv_path = project_root / "datasets" / "truthfulqa_implications_essays.csv"
+    else:
+        csv_path = project_root / "datasets" / "truthfulqa_implications.csv"
     
     print("Loading hypothesis contamination data...")
-    examples = load_hypothesis_data(csv_path, max_examples=10)
+    examples = load_hypothesis_data(csv_path, max_examples=args.max_examples, use_essays=args.use_essays)
     print(f"Loaded {len(examples)} examples")
+    if args.use_essays:
+        print("Using essays instead of false assertions")
     
     print("Loading LOCOMO prompts...")
     locomo_prompts = load_locomo_prompts(num_prompts=10)
@@ -201,7 +260,7 @@ def main():
     # Set OPENAI_API_KEY for mem0 (it expects this name)
     os.environ["OPENAI_API_KEY"] = api_key
     
-    llm = OpenAILLM(api_key=api_key, model="gpt-4o-mini")
+    llm = OpenAILLM(api_key=api_key, model="gpt-4.1-mini")
     memory_system = Mem0MemorySystem(num_memories=2)
     prompt_template = SimplePromptTemplate()
     tokenizer = TiktokenTokenizer()
@@ -228,7 +287,7 @@ def main():
         )
         all_results.append(result)
     
-    # Save results
+    # Save JSON results
     output_path = project_root / "playground" / "mem0_hypothesis_results.json"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
@@ -236,7 +295,19 @@ def main():
         json.dump(all_results, f, indent=2, ensure_ascii=False)
     
     print(f"\n{'='*60}")
-    print(f"Results saved to {output_path}")
+    print(f"JSON results saved to {output_path}")
+    
+    # Save CSV with false assertions and responses
+    csv_output_path = project_root / "playground" / "mem0_hypothesis_assertions_responses.csv"
+    with open(csv_output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["false_assertion", "llm_response"])
+        for result in all_results:
+            false_assertion = result["example"]["assertive"]
+            llm_response = result["first_assertion_response"]
+            writer.writerow([false_assertion, llm_response])
+    
+    print(f"CSV results saved to {csv_output_path}")
     print(f"{'='*60}")
     
     # Print summary
