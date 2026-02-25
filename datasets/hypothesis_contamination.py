@@ -9,6 +9,7 @@ from typing import List, Tuple
 from openai import OpenAI
 from dotenv import load_dotenv
 import requests
+import argparse
 
     
 # Get the parent directory (project root)
@@ -241,7 +242,7 @@ if __name__ == "__main__":
     # Step 1: Generate question-assertive pairs
     raw_truthfulqa_based_questions(
         project_root / "datasets" / "truthfulqa_assertives.csv", 
-        max_questions=10
+        max_questions=50
     )
 
     # Step 2: Generate implications

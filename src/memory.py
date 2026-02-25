@@ -6,7 +6,7 @@ its own internal state (both global and per-conversation memory).
 """
 
 from .types import Conversation, LLMResponse, Prompt
-from agentic_memory.memory_system import AgenticMemorySystem
+from .amem import AgenticMemorySystem, MemoryNote
 import mem0
 import os
 
@@ -153,10 +153,15 @@ class Mem0MemorySystem:
 
 class AMEMMemorySystem:
     """
-    Memory system using A-MEM (Agentic Memory, https://github.com/agiresearch/A-mem).
+    Memory system using A-MEM (https://github.com/WujiangXu/A-mem).
+    NeurIPS 2025: "A-Mem: Agentic Memory for LLM Agents".
 
-    A-MEM provides dynamic memory organization based on Zettelkasten principles,
-    with intelligent indexing, linking, and evolution of memories via ChromaDB.
+    Implements Zettelkasten-style agentic memory with:
+    - LLM-driven note indexing (keywords, context, tags)
+    - Semantic + BM25 hybrid retrieval via SimpleEmbeddingRetriever
+    - Automatic memory evolution and cross-linking
+    - Linked-neighbor recall: each retrieved memory also pulls in its
+      Zettelkasten links, following the pattern in test_advanced.py
     """
 
     def __init__(
@@ -167,21 +172,19 @@ class AMEMMemorySystem:
         embedding_model: str,
         evo_threshold: int,
         api_key: str | None = None,
-        **amem_kwargs,
     ):
         """
         Initialize AMEMMemorySystem.
 
         Args:
-            num_memories: Number of memories to retrieve per query (k for search_agentic).
+            num_memories: Number of top-k memories to retrieve per query.
+                          Zettelkasten-linked neighbors are also returned.
             llm_backend: LLM backend for A-MEM ("openai" or "ollama").
-            llm_model: LLM model name used by A-MEM for note generation/evolution.
-            embedding_model: Sentence-transformer model name for ChromaDB embeddings.
-            evo_threshold: Evolution threshold for A-MEM.
-            api_key: OpenAI API key.
-            **amem_kwargs: Additional keyword arguments forwarded to AgenticMemorySystem.
+            llm_model: LLM model for note generation and evolution.
+            embedding_model: Sentence-transformer model name for embeddings.
+            evo_threshold: How many memories before triggering evolution.
+            api_key: OpenAI API key (falls back to OPENAI_KEY env var).
         """
-
         if api_key is None:
             api_key = os.getenv("OPENAI_KEY")
 
@@ -192,29 +195,70 @@ class AMEMMemorySystem:
             llm_model=llm_model,
             evo_threshold=evo_threshold,
             api_key=api_key,
-            **amem_kwargs,
         )
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _format_note(self, note: MemoryNote, label: str) -> str:
+        lines = [f"{label}:"]
+        lines.append(f"  Content:  {note.content}")
+        if note.context:
+            lines.append(f"  Context:  {note.context}")
+        if note.tags:
+            tags = note.tags if isinstance(note.tags, list) else list(note.tags)
+            lines.append(f"  Tags:     {', '.join(str(t) for t in tags)}")
+        if note.keywords:
+            kws = note.keywords if isinstance(note.keywords, list) else list(note.keywords)
+            lines.append(f"  Keywords: {', '.join(str(k) for k in kws)}")
+        return "\n".join(lines)
+
+    # ------------------------------------------------------------------
+    # MemorySystem protocol
+    # ------------------------------------------------------------------
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         """
-        Retrieve relevant memories from A-MEM using semantic search.
-        """
-        results = self._memory.search_agentic(prompt, k=self.num_memories)
-        if not results:
-            return ""
-        memory_parts = []
-        for i, entry in enumerate(results, 1):
-            content = entry.get("content", "")
-            context = entry.get("context", "")
-            tags = entry.get("tags", [])
-            keywords = entry.get("keywords", [])
+        Retrieve the k most relevant memories via semantic + BM25 search,
+        then follow each memory's Zettelkasten links to pull in related notes.
 
-            lines = [f"Memory {i}:"]
-            lines.append(f"  Content:  {content}")
-            lines.append(f"  Context:  {context if context else '—'}")
-            lines.append(f"  Tags:     {', '.join(tags) if tags else '—'}")
-            lines.append(f"  Keywords: {', '.join(keywords) if keywords else '—'}")
-            memory_parts.append("\n".join(lines))
+        This mirrors the retrieve_memory() / find_related_memories_raw() pattern
+        from test_advanced.py in the WujiangXu/A-mem repository.
+        """
+        if not self._memory.memories:
+            return ""
+
+        # Retrieve top-k indices from the hybrid retriever
+        indices = self._memory.retriever.search(prompt, k=self.num_memories)
+        all_notes = list(self._memory.memories.values())
+
+        seen: set[int] = set()
+        memory_parts: list[str] = []
+        mem_num = 1
+
+        for idx in indices:
+            if idx >= len(all_notes) or idx in seen:
+                continue
+            seen.add(idx)
+            note = all_notes[idx]
+            memory_parts.append(self._format_note(note, f"Memory {mem_num}"))
+            mem_num += 1
+
+            # Follow Zettelkasten links (same logic as find_related_memories_raw)
+            for j, neighbor_idx in enumerate(note.links):
+                if j >= self.num_memories:
+                    break
+                if (
+                    isinstance(neighbor_idx, int)
+                    and neighbor_idx < len(all_notes)
+                    and neighbor_idx not in seen
+                ):
+                    seen.add(neighbor_idx)
+                    nb = all_notes[neighbor_idx]
+                    memory_parts.append(self._format_note(nb, f"Memory {mem_num} (linked)"))
+                    mem_num += 1
+
         return "\n\n".join(memory_parts)
 
     def update_memory(
@@ -223,8 +267,10 @@ class AMEMMemorySystem:
         """
         Store the latest exchange as a new note in A-MEM.
 
-        The prompt and response are combined into a single note so that A-MEM
-        can extract keywords, generate context, and link it to related memories.
+        The full prompt+response is passed to add_note so A-MEM can:
+        - extract keywords and tags via LLM
+        - generate a context summary
+        - link to and evolve related existing memories
         """
         note_content = f"User: {prompt}\nAssistant: {response}"
         self._memory.add_note(note_content)
