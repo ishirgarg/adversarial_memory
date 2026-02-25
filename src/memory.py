@@ -6,7 +6,9 @@ its own internal state (both global and per-conversation memory).
 """
 
 from .types import Conversation, LLMResponse, Prompt
+from agentic_memory.memory_system import AgenticMemorySystem
 import mem0
+import os
 
 
 class NoHistoryMemorySystem:
@@ -110,10 +112,7 @@ class Mem0MemorySystem:
                 If None, uses conversation_id as user_id (default behavior).
             **mem0_kwargs: Additional arguments to pass to mem0.Memory() constructor
                 (e.g., vector_store, llm_config, etc.)
-        """
-        if num_memories is None:
-            raise ValueError("num_memories is required for Mem0MemorySystem")
-        
+        """        
         self.memory = mem0.Memory(**mem0_kwargs)
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id
@@ -150,3 +149,82 @@ class Mem0MemorySystem:
             {"role": "assistant", "content": response},
         ]
         self.memory.add(messages, user_id=user_id)
+
+
+class AMEMMemorySystem:
+    """
+    Memory system using A-MEM (Agentic Memory, https://github.com/agiresearch/A-mem).
+
+    A-MEM provides dynamic memory organization based on Zettelkasten principles,
+    with intelligent indexing, linking, and evolution of memories via ChromaDB.
+    """
+
+    def __init__(
+        self,
+        num_memories: int,
+        llm_backend: str,
+        llm_model: str,
+        embedding_model: str,
+        evo_threshold: int,
+        api_key: str | None = None,
+        **amem_kwargs,
+    ):
+        """
+        Initialize AMEMMemorySystem.
+
+        Args:
+            num_memories: Number of memories to retrieve per query (k for search_agentic).
+            llm_backend: LLM backend for A-MEM ("openai" or "ollama").
+            llm_model: LLM model name used by A-MEM for note generation/evolution.
+            embedding_model: Sentence-transformer model name for ChromaDB embeddings.
+            evo_threshold: Evolution threshold for A-MEM.
+            api_key: OpenAI API key.
+            **amem_kwargs: Additional keyword arguments forwarded to AgenticMemorySystem.
+        """
+
+        if api_key is None:
+            api_key = os.getenv("OPENAI_KEY")
+
+        self.num_memories = num_memories
+        self._memory = AgenticMemorySystem(
+            model_name=embedding_model,
+            llm_backend=llm_backend,
+            llm_model=llm_model,
+            evo_threshold=evo_threshold,
+            api_key=api_key,
+            **amem_kwargs,
+        )
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        """
+        Retrieve relevant memories from A-MEM using semantic search.
+        """
+        results = self._memory.search_agentic(prompt, k=self.num_memories)
+        if not results:
+            return ""
+        memory_parts = []
+        for i, entry in enumerate(results, 1):
+            content = entry.get("content", "")
+            context = entry.get("context", "")
+            tags = entry.get("tags", [])
+            keywords = entry.get("keywords", [])
+
+            lines = [f"Memory {i}:"]
+            lines.append(f"  Content:  {content}")
+            lines.append(f"  Context:  {context if context else '—'}")
+            lines.append(f"  Tags:     {', '.join(tags) if tags else '—'}")
+            lines.append(f"  Keywords: {', '.join(keywords) if keywords else '—'}")
+            memory_parts.append("\n".join(lines))
+        return "\n\n".join(memory_parts)
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
+    ) -> None:
+        """
+        Store the latest exchange as a new note in A-MEM.
+
+        The prompt and response are combined into a single note so that A-MEM
+        can extract keywords, generate context, and link it to related memories.
+        """
+        note_content = f"User: {prompt}\nAssistant: {response}"
+        self._memory.add_note(note_content)

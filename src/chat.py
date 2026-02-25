@@ -30,7 +30,6 @@ class ChatSystem:
         Start a new conversation.
         TODO: Implement actual conversation initialization.
         """
-        # Skeleton implementation - to be filled in with actual algorithm
         conversation_id = uuid4()
         self._conversations[conversation_id] = Conversation(
             conversation_id=conversation_id, messages=()
