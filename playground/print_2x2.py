@@ -24,18 +24,22 @@ def main():
     for r in valid:
         counts[(r["accepted_essay"], r["wrong_answer"])] += 1
 
-    W = 16  # label column width
-    C = 13  # data column width
+    fooled             = [r for r in valid if r["wrong_answer"]]
+    memory_caused      = [r for r in fooled if r.get("memory_caused") is True]
+    not_memory_caused  = [r for r in fooled if r.get("memory_caused") is False]
+    memory_na          = [r for r in fooled if r.get("memory_caused") is None]
 
     rows = [
         ("No (pushed back)", False),
         ("Yes (accepted)",   True),
     ]
     row_labels = [f"Essay accepted: {label}" for label, _ in rows]
-    LW = max(len(l) for l in row_labels)  # dynamic label width
+    LW = max(len(l) for l in row_labels)
+    C  = 13
 
     sep = "-" * (LW + 2 * (C + 2) + 14)
 
+    # ── 2×2 table ────────────────────────────────────────────────────────────
     print(f"\nn = {n}\n")
     print(f"{'':>{LW}}   {'Wrong answer':^{2*C+4}}")
     print(f"{'':>{LW}}   {'No (correct)':^{C}}  {'Yes (fooled)':^{C}}  {'Row total':^9}")
@@ -50,6 +54,21 @@ def main():
     col_no  = counts[(False, False)] + counts[(True, False)]
     col_yes = counts[(False, True)]  + counts[(True, True)]
     print(f"{'Column total':<{LW}}   {col_no:^{C}}  {col_yes:^{C}}  {n:^9}")
+
+    # ── memory-caused breakdown (only for fooled examples) ───────────────────
+    print()
+    if fooled:
+        fw = len(fooled)
+        mc  = len(memory_caused)
+        nmc = len(not_memory_caused)
+        na  = len(memory_na)
+        print(f"Of the {fw} fooled example(s):")
+        print(f"  Caused by retrieved memories : {mc:>3}  ({100*mc/fw:.1f}%)")
+        print(f"  Not caused by memories       : {nmc:>3}  ({100*nmc/fw:.1f}%)")
+        if na:
+            print(f"  Memory cause not evaluated   : {na:>3}  ({100*na/fw:.1f}%)")
+    else:
+        print("No fooled examples — memory-cause analysis not applicable.")
     print()
 
 
