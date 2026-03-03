@@ -102,7 +102,14 @@ class Mem0MemorySystem:
     to find relevant memories and automatically extracting key information.
     """
 
-    def __init__(self, num_memories: int, shared_user_id: str | None = None, **mem0_kwargs):
+    def __init__(
+        self,
+        num_memories: int,
+        shared_user_id: str | None = None,
+        embedding_provider: str | None = None,
+        embedding_model: str | None = None,
+        **mem0_kwargs,
+    ):
         """
         Initialize Mem0 memory system.
 
@@ -110,9 +117,26 @@ class Mem0MemorySystem:
             num_memories: Maximum number of relevant memories to retrieve (required).
             shared_user_id: Optional shared user_id to use across all conversations.
                 If None, uses conversation_id as user_id (default behavior).
+            embedding_provider: Provider for embeddings (e.g., "openai", "ollama", "sentence-transformers").
+                If None, uses mem0's default (usually OpenAI).
+            embedding_model: Model name for embeddings (e.g., "text-embedding-3-small" for OpenAI,
+                "nomic-embed-text" for Ollama, "all-MiniLM-L6-v2" for sentence-transformers).
             **mem0_kwargs: Additional arguments to pass to mem0.Memory() constructor
                 (e.g., vector_store, llm_config, etc.)
-        """        
+        """
+        # Configure embedder if provided
+        if embedding_provider and embedding_model:
+            embedder_config = {
+                "provider": embedding_provider,
+                "config": {
+                    "model": embedding_model,
+                }
+            }
+            # For Ollama, we might need to pass base_url if provided
+            if embedding_provider == "ollama" and "ollama_base_url" in mem0_kwargs:
+                embedder_config["config"]["base_url"] = mem0_kwargs.pop("ollama_base_url")
+            mem0_kwargs["embedder"] = embedder_config
+        
         self.memory = mem0.Memory(**mem0_kwargs)
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id

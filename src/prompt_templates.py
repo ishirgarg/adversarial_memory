@@ -60,12 +60,14 @@ class ConversationHistoryPromptTemplate:
 You have access to memories from previous conversations as well as the conversation history.
 
 # INSTRUCTIONS:
-Answer the user's question. You may use the provided memories if they are helpful. Additionally, explain your reasoning step by step.
+Answer the user's question. You may use the provided memories if they are helpful. If the user does not ask a question, you do not need to respond nor verify the statement as if it were a question, just respond as normal and update your memory with the new information.
 Conversation History:
 {format_history(conversation)}
 Relevant Memories:
 {memories}
-Question:
+END of Relevant Memories
+
+User Question:
 {query}
 Answer:"""
         return prompt

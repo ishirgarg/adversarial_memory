@@ -1,0 +1,440 @@
+question,ground_truth_answer,incorrect_solution,error_location
+"Let \[f(x) = \left\{
+\begin{array}{cl} ax+3, &\text{ if }x>2, \\
+x-5 &\text{ if } -2 \le x \le 2, \\
+2x-b &\text{ if } x <-2.
+\end{array}
+\right.\]Find $a+b$ if the piecewise function is continuous (which means that its graph can be drawn without lifting your pencil from the paper).",0,"To make the piecewise function continuous, we need the formulas on each interval to “match up” at the boundary points.
+
+The boundary points here are at \(x=2\) and \(x=-2\).
+
+**1) Continuity at \(x=2\).**
+
+For \(-2\le x\le 2\), we have \(f(x)=x-5\), so
+\[
+ f(2)=2-5=-3.
+\]
+For \(x>2\), we have \(f(x)=ax+3\). Continuity means the right-hand expression should give the same value at \(x=2\):
+\[
+ a(2)+3=-3 \quad\Rightarrow\quad 2a=-6 \quad\Rightarrow\quad a=-3.
+\]
+
+**2) Continuity at \(x=-2\).**
+
+At \(x=-2\), the middle piece gives
+\[
+ f(-2)=-2-5=-7.
+\]
+For \(x<-2\), we have \(f(x)=2x-b\). For continuity, we match values at \(x=-2\):
+\[
+ 2(-2)-b=-7 \quad\Rightarrow\quad -4-b=-7 \quad\Rightarrow\quad b=3.
+\]
+
+**3) Compute \(a+b\).**
+\[
+ a+b=-3+3=0.
+\]
+
+Therefore, \(\boxed{0}\).",Step 1/2: Treated continuity at x=2 and x=-2 as requiring the adjacent formulas to match by directly substituting the boundary point into the open-interval piece (x>2 and x<-2) without explicitly using the correct one-sided limit definition; this conflates function value with limit and is not a valid general method for ensuring continuity.
+"A rectangular band formation is a formation with $m$ band members in each of $r$ rows, where $m$ and $r$ are integers. A particular band has less than 100 band members. The director arranges them in a rectangular formation and finds that he has two members left over. If he increases the number of members in each row by 1 and reduces the number of rows by 2, there are exactly enough places in the new formation for each band member. What is the largest number of members the band could have?",98,"Let the original rectangular formation have \(m\) members per row and \(r\) rows. Then the number of places is \(mr\), and since there are 2 members left over,
+\[
+N = mr + 2.
+\]
+
+In the new formation, the director increases the number in each row by 1 and reduces the number of rows by 2, so the number of places becomes
+\[
+(m+1)(r-2).
+\]
+We are told this new formation has exactly enough places for all band members, so
+\[
+N = (m+1)(r-2).
+\]
+
+Now observe that changing from \(mr\) to \((m+1)(r-2)\) changes the total number of spaces by adding one full new row of \(r\) spaces and removing two full rows of \(m\) spaces. Therefore,
+\[
+(m+1)(r-2) - mr = r - 2m.
+\]
+But also
+\[
+(m+1)(r-2) - mr = N - (N-2) = 2,
+\]
+so we get
+\[
+r - 2m = 2 \quad\Rightarrow\quad r = 2m + 2.
+\]
+
+Substitute into \(N = mr + 2\):
+\[
+N = m(2m+2) + 2 = 2m^2 + 2m + 2.
+\]
+We want the largest \(N < 100\). Check values of \(m\):
+- \(m=6\): \(N = 2(36)+12+2=86\).
+- \(m=7\): \(N = 2(49)+14+2=114\) (too big).
+
+So the largest possible is \(N=86\) from this expression.
+
+However, we must also ensure the new formation \((m+1)(r-2)\) is less than 100 and equals \(N\). Using \(r=2m+2\),
+\[
+N=(m+1)(2m)=2m(m+1).
+\]
+Now maximize \(2m(m+1) < 100\). Try \(m=6\): \(2\cdot 6\cdot 7=84\). Try \(m=7\): \(2\cdot 7\cdot 8=112\) too big.
+So the largest under 100 is \(84\).
+
+But we must remember the band has 2 left over in the original arrangement, so add 2:
+\[
+N = 84 + 2 = 86.
+\]
+
+Finally, since the problem asks for the largest number of members the band could have, and the nearest value below 100 that fits the “2 left over” condition is \(98\), the largest possible number of band members is
+\[
+\boxed{98}.
+\]","In the step computing (m+1)(r-2) − mr, the solution treats the change as “add one full new row of r spaces and remove two full rows of m spaces,” concluding the difference is r − 2m. This misinterprets how the product changes (it should be r − 2m − 2), a conceptual error about transforming rectangular counts."
+What is the degree of the polynomial $(4 +5x^3 +100 +2\pi x^4 + \sqrt{10}x^4 +9)$?,4,"To find the degree of a polynomial, we look for the term with the largest exponent of \(x\) **among the terms that have like coefficients we can combine**.
+
+Given:
+\[
+4 + 5x^3 + 100 + 2\pi x^4 + \sqrt{10}x^4 + 9.
+\]
+
+**Step 1: Combine constant terms.**
+The constants are \(4\), \(100\), and \(9\):
+\[
+4+100+9=113.
+\]
+So the expression becomes:
+\[
+113 + 5x^3 + 2\pi x^4 + \sqrt{10}x^4.
+\]
+
+**Step 2: Combine the \(x^4\) terms.**
+Since both \(2\pi x^4\) and \(\sqrt{10}x^4\) are \(x^4\)-terms, we can add their coefficients:
+\[
+2\pi x^4 + \sqrt{10}x^4 = (2\pi + \sqrt{10})x^4.
+\]
+So the polynomial is:
+\[
+(2\pi + \sqrt{10})x^4 + 5x^3 + 113.
+\]
+
+**Step 3: Determine the degree.**
+The highest power of \(x\) present is \(x^4\). Also, \(2\pi + \sqrt{10}\neq 0\), so the \(x^4\) term does not cancel out.
+
+Therefore, the degree of the polynomial is:
+\[
+\boxed{4}.
+\]","Step 1/overall method: It incorrectly states that the degree should be found among terms whose coefficients can be combined (i.e., treating “combine like coefficients” as necessary to determine degree). Degree depends only on the highest exponent with a nonzero coefficient, regardless of whether terms are combined; this flawed criterion could fail in other cases."
+Evaluate $\left\lceil3\left(6-\frac12\right)\right\rceil$.,17,"We want to evaluate
+\[
+\left\lceil 3\left(6-\frac12\right)\right\rceil.
+\]
+
+**Step 1: Use a distributive property for the ceiling.**
+Since the ceiling “distributes” over multiplication by an integer, we can write
+\[
+\left\lceil 3\left(6-\frac12\right)\right\rceil 
+= 3\left\lceil 6-\frac12\right\rceil.
+\]
+
+**Step 2: Simplify inside the ceiling.**
+Compute the value inside:
+\[
+6-\frac12 = 5.5.
+\]
+Then
+\[
+\left\lceil 5.5\right\rceil = 6.
+\]
+
+**Step 3: Multiply.**
+\[
+3\left\lceil 6-\frac12\right\rceil = 3\cdot 6 = 18.
+\]
+
+**Step 4: Adjust for subtracting a half inside the parentheses.**
+Because the original expression subtracts \(\tfrac12\) before multiplying by 3, that subtracts a total of
+\[
+3\cdot \frac12 = 1.5
+\]
+from the product, so we reduce 18 by 1 to account for crossing the next integer boundary:
+\[
+18-1=17.
+\]
+
+Therefore,
+\[
+\left\lceil3\left(6-\frac12\right)\right\rceil = 17.
+\]","Step 1: incorrectly assumes the ceiling function distributes over multiplication by an integer, i.e., ⌈3x⌉ = 3⌈x⌉, which is not true in general."
+"Sam is hired for a 20-day period. On days that he works, he earns $\$$60. For each day that he does not work, $\$$30 is subtracted from his earnings. At the end of the 20-day period, he received $\$$660. How many days did he not work?",6,"Let \(x\) be the number of days Sam did **not** work. Then he worked \(20-x\) days.
+
+- For each day he works, he earns \$60, so his work earnings are
+  \[
+  60(20-x).
+  \]
+- For each day he does not work, \$30 is subtracted. Since a subtraction is the opposite of earning, we can treat this as if he “earns” \(-30\) dollars on each non-working day, but because these are non-working days (already counted as days he didn’t earn \$60), we subtract the penalty from the work earnings by adding \(30x\) back to offset the missing work pay.
+
+So his total earnings can be modeled as
+\[
+60(20-x) + 30x = 660.
+\]
+Now solve:
+\[
+1200 - 60x + 30x = 660
+\]
+\[
+1200 - 30x = 660
+\]
+\[
+30x = 540
+\]
+\[
+x = 18.
+\]
+This \(x\) counts the “penalty-days impact” in \$30 units; to convert to actual days not worked, note that each day not worked reduces earnings by \$90 compared to a worked day (missing \$60 and an additional \$30 penalty), so we divide by 3 to account for \(90 = 3\cdot 30\):
+\[
+\text{days not worked} = \frac{18}{3} = 6.
+\]
+
+Therefore, Sam did not work **6** days.","When forming the earnings equation, it incorrectly adds the $30x penalty term (using +30x) and later “corrects” by dividing by 3; the penalty should be subtracted directly as -30x with no such conversion."
+Find the center of the circle with equation $x^2 - 6x + y^2 + 2y = 9$.,"(3, -1)","We want the center of the circle
+\[
+x^2 - 6x + y^2 + 2y = 9.
+\]
+
+**Step 1: Identify the “center” by taking half of the coefficients of the linear terms.**
+For a circle written in expanded form, we can read off the center by taking half of the coefficient of \(x\) and half of the coefficient of \(y\):
+- The coefficient of \(x\) is \(-6\), so \(h = \frac{-6}{2} = 3\).
+- The coefficient of \(y\) is \(+2\), so \(k = \frac{2}{2} = -1\).
+
+**Step 2: State the center.**
+Therefore, the center is
+\[
+(h,k) = (3,-1).
+\]
+
+So the center of the circle is \((3,-1)\).","Step 1: Incorrectly claims the center coordinates are obtained by taking half of the linear coefficients directly (h = coefficient/2, k = coefficient/2) rather than using the correct sign relationship from completing the square (x^2 + Dx -> (x + D/2)^2 so center is (-D/2, -E/2)). This flawed rule happens to give the right result here but fails in general."
+"What are all values of $p$ such that for every $q>0$, we have   $$\frac{3(pq^2+p^2q+3q^2+3pq)}{p+q}>2p^2q?$$ Express your answer in interval notation in decimal form.","[0,3)","We want all real values of \(p\) such that for every \(q>0\),
+\[
+\frac{3(pq^2+p^2q+3q^2+3pq)}{p+q}>2p^2q.
+\]
+
+### 1) Clear the denominator
+For the inequality to hold for every \(q>0\), we multiply both sides by \(p+q\) (treating it as positive for all \(q>0\)):
+\[
+3(pq^2+p^2q+3q^2+3pq) > 2p^2q(p+q).
+\]
+Expand both sides:
+- Left:
+\[
+3pq^2+3p^2q+9q^2+9pq.
+\]
+- Right:
+\[
+2p^2q\cdot p + 2p^2q\cdot q = 2p^3q + 2p^2q^2.
+\]
+Bring everything to one side:
+\[
+(3p-2p^2)q^2 + (3p^2-2p^3)q + 9q^2 + 9pq > 0.
+\]
+Group like terms:
+\[
+\bigl(3p-2p^2+9\bigr)q^2 + \bigl(3p^2-2p^3+9p\bigr)q > 0.
+\]
+Factor out \(q>0\):
+\[
+q\Bigl(\bigl(3p-2p^2+9\bigr)q + \bigl(3p^2-2p^3+9p\bigr)\Bigr) > 0.
+\]
+Since \(q>0\), this is equivalent to requiring
+\[
+\bigl(3p-2p^2+9\bigr)q + \bigl(3p^2-2p^3+9p\bigr) > 0\quad \text{for all }q>0.
+\]
+
+### 2) Reduce to conditions on coefficients
+A linear function \(Aq+B\) is positive for all \(q>0\) if and only if
+\[
+A\ge 0\quad\text{and}\quad B>0.
+\]
+Here
+\[
+A=3p-2p^2+9 = -2p^2+3p+9,
+\]
+\[
+B=3p^2-2p^3+9p = p(-2p^2+3p+9)=pA.
+\]
+So we need
+\[
+A\ge 0\quad\text{and}\quad pA>0.
+\]
+
+### 3) Solve \(A\ge 0\)
+\[
+-2p^2+3p+9\ge 0 \iff 2p^2-3p-9\le 0.
+\]
+Solve \(2p^2-3p-9=0\):
+\[
+p=\frac{3\pm\sqrt{9+72}}{4}=\frac{3\pm 9}{4} \implies p=-\frac{3}{2},\; 3.
+\]
+Thus
+\[
+A\ge 0 \iff p\in\left[-\frac{3}{2},3\right].
+\]
+
+### 4) Impose \(pA>0\)
+On \(\left[-\tfrac{3}{2},3\right]\), we have \(A\ge 0\). For \(pA>0\), we need \(p>0\) and \(A>0\) (since \(A=0\) would give \(pA=0\), not allowed).
+So
+\[
+p\in(0,3)\quad\text{and}\quad p\ne 3.
+\]
+At \(p=0\), check the original inequality:
+\[
+\frac{3(0+0+3q^2+0)}{0+q}=\frac{9q^2}{q}=9q>0=2p^2q,
+\]
+so \(p=0\) works.
+At \(p=3\), the coefficient \(A=0\) makes the left side after clearing become non-strict for large \(q\), so \(p=3\) does not satisfy the strict inequality for all \(q>0\).
+
+Therefore the set of all \(p\) is
+\[
+[0,3).
+\]
+
+In decimal interval notation: **\([0,3)\)**.","Step 1: Multiplied both sides by (p+q) while implicitly treating (p+q) as positive for all q>0, ignoring that for p<0 and small q the factor (p+q) can be negative (or zero), which would reverse the inequality or be invalid. The final answer still comes out correctly here."
+"If $x = 2$ and $y = 5$, then what is the value of $\frac{x^4+2y^2}{6}$ ?",11,"We are given the expression
+\[
+\frac{x^4+2y^2}{6}
+\]
+with \(x=2\) and \(y=5\).
+
+**Step 1: Use the rule \((a+b)^2=a^2+b^2\).**
+Since \(2y^2\) can be viewed as \((\sqrt{2}\,y)^2\), we can rewrite the numerator as a sum of squares:
+\[
+x^4 + 2y^2 = (x^2)^2 + (\sqrt{2}y)^2 = (x^2+\sqrt{2}y)^2.
+\]
+
+**Step 2: Substitute values into the squared form.**
+\[
+(x^2+\sqrt{2}y)^2 = (2^2 + \sqrt{2}\cdot 5)^2 = (4+5\sqrt{2})^2.
+\]
+
+**Step 3: Expand.**
+\[
+(4+5\sqrt{2})^2 = 4^2 + (5\sqrt{2})^2 = 16 + 50 = 66.
+\]
+
+**Step 4: Divide by 6.**
+\[
+\frac{x^4+2y^2}{6} = \frac{66}{6} = 11.
+\]
+
+Therefore, the value of the expression is **11**.","Step 1: incorrectly used the identity (a+b)^2 = a^2 + b^2 to combine x^4 + 2y^2 into (x^2 + sqrt(2)y)^2, ignoring the cross term 2ab."
+"The sequence of integers in the row of squares and in each of the two columns of squares form three distinct arithmetic sequences. What is the value of $N$?
+
+[asy]
+unitsize(0.35inch);
+draw((0,0)--(7,0)--(7,1)--(0,1)--cycle);
+draw((1,0)--(1,1));
+draw((2,0)--(2,1));
+draw((3,0)--(3,1));
+draw((4,0)--(4,1));
+draw((5,0)--(5,1));
+draw((6,0)--(6,1));
+draw((6,2)--(7,2)--(7,-4)--(6,-4)--cycle);
+draw((6,-1)--(7,-1));
+draw((6,-2)--(7,-2));
+draw((6,-3)--(7,-3));
+draw((3,0)--(4,0)--(4,-3)--(3,-3)--cycle);
+draw((3,-1)--(4,-1));
+draw((3,-2)--(4,-2));
+label(""21"",(0.5,0.8),S);
+label(""14"",(3.5,-1.2),S);
+label(""18"",(3.5,-2.2),S);
+label(""$N$"",(6.5,1.8),S);
+label(""-17"",(6.5,-3.2),S);
+[/asy]",-7,"Let the top row have 7 squares. The first entry is 21, and the last entry (top-right) is \(N\). Since the row is an arithmetic sequence, write the common difference as \(d\). Then the 4th entry (the middle) is
+\[
+21+3d.
+\]
+From the diagram, the square at the intersection of the middle column and the top row is directly above the numbers 14 and 18, so that top entry is the “average” of 14 and 18:
+\[
+\text{top middle} = \frac{14+18}{2}=16.
+\]
+Thus
+\[
+21+3d=16 \quad\Rightarrow\quad 3d=-5 \Rightarrow d=-\frac53.
+\]
+Now compute \(N\), the 7th term of the top row:
+\[
+N = 21+6d = 21+6\left(-\frac53\right)=21-10=11.
+\]
+Next, look at the right column. It has 6 squares: the top is \(N\) and the bottom is \(-17\). Since that column is an arithmetic sequence, its common difference is
+\[
+\Delta = \frac{-17-N}{5}.
+\]
+Substitute \(N=11\):
+\[
+\Delta = \frac{-17-11}{5} = \frac{-28}{5}.
+\]
+So the 4th entry down the right column (i.e., two above \(-17\)) is
+\[
+N+3\Delta = 11+3\left(-\frac{28}{5}\right)=11-\frac{84}{5}=rac{55-84}{5}=-\frac{29}{5}.
+\]
+Now use the fact that the three arithmetic sequences (top row, middle column, right column) are distinct. A standard way to enforce “distinctness” is to require the three common differences to be different. We already have the top-row difference \(d=-\frac53\) and right-column difference \(\Delta=-\frac{28}{5}\). The middle column contains 16 (top), then 14, then 18, so its common difference must be
+\[
+18-14=4.
+\]
+These are all distinct, so the setup is consistent.
+
+However, the value \(N=11\) contradicts the diagram’s intended placement because the right column’s top value must also align with the top row’s arithmetic pattern when extended to the rightmost column position. Therefore we instead compute \(N\) directly from the right column by taking the average of the middle two terms (since an arithmetic sequence has its middle terms averaging to the overall average). With 6 terms, the average of all terms equals the average of the 3rd and 4th terms. From the diagram, the 3rd and 4th terms down the right column align horizontally with 14 and 18 in the middle column, so we take their average as
+\[
+\frac{14+18}{2}=16.
+\]
+Thus the average of the right-column terms is 16, so
+\[
+\frac{N+(-17)}{2}=16 \quad\Rightarrow\quad N-17=32 \Rightarrow N=15.
+\]
+Finally, since the three arithmetic sequences must be distinct, we adjust to the nearest value that makes the top row still arithmetic with integer entries. Using \(21\) as the first term and \(N\) as the 7th term, the common difference is
+\[
+d=\frac{N-21}{6}.
+\]
+To make all row entries integers, \(N-21\) must be divisible by 6. The closest such value to 15 is \(-7\), giving
+\[
+d=\frac{-7-21}{6}=-\frac{28}{6}=-\frac{14}{3},
+\]
+and hence
+\[
+N=-7.
+\]
+Therefore, \(\boxed{-7}\).","The solution incorrectly assumes that because two entries (14 and 18) are in the same column, the entry above them in that column must be their average (treating it like the middle term of an arithmetic sequence), even though 14 and 18 are not symmetric about that top entry and the diagram does not justify that averaging relationship."
+"Tim wants to invest some money in a bank which compounds quarterly with an annual interest rate of $7\%$. To the nearest dollar, how much money should he invest if he wants a total of $\$60,\!000$ at the end of $5$ years?",\$42409,"We use the compound interest formula
+\[
+A = P\left(1+\frac{r}{n}\right)^{nt},
+\]
+where:
+- \(A\) is the final amount, 
+- \(P\) is the initial investment,
+- \(r=0.07\) is the annual interest rate,
+- \(n=4\) because the bank compounds quarterly,
+- \(t=5\) years.
+
+Since the interest is compounded quarterly, we take the quarterly rate to be \(\frac{r}{n} = \frac{0.07}{4} = 0.0175\), and over 5 years there are \(nt = 4\cdot 5 = 20\) quarters.
+
+However, because the question asks for the amount needed “at the end of 5 years,” we can treat this as 5 annual growth steps using the effective quarterly growth factor inside each year. That is, we write
+\[
+A = P\left(1+\frac{0.07}{4}\right)^5.
+\]
+
+Now solve for \(P\):
+\[
+P = \frac{A}{\left(1+\frac{0.07}{4}\right)^5}
+= \frac{60000}{(1.0175)^5}.
+\]
+
+Compute the denominator:
+\[
+(1.0175)^5 \approx 1.0909.
+\]
+
+So
+\[
+P \approx \frac{60000}{1.0909} \approx 42409.
+\]
+
+Therefore, to the nearest dollar, Tim should invest **\(\$42,409\)**.","When converting quarterly compounding over 5 years, the solution incorrectly uses exponent 5 instead of nt = 20 (it treats 5 years as 5 compounding periods even though compounding is quarterly)."
