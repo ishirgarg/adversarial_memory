@@ -203,6 +203,16 @@ cython_debug/
 
 .DS_Store
 
+# LanceDB runtime databases
+simplemem_db/
+simplemem_locomo_db_conv-*/
+
+# Benchmark results
+results/
+
+# Test/scratch files
+test_api_key.py
+
 # Ruff stuff:
 .ruff_cache/
 

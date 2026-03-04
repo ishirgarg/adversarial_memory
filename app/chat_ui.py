@@ -2,7 +2,7 @@
 chat_ui.py — Minimalist ChatGPT-style web UI using Streamlit.
 
 A simple interactive chat interface that supports:
-- Multiple memory systems (NoHistory, SimpleHistory, Mem0, A-MEM)
+- Multiple memory systems (NoHistory, SimpleHistory, Mem0, A-MEM, SimpleMem)
 - Creating new conversations
 - Viewing and continuing previous conversations
 - Memory retrieval and updates
@@ -10,6 +10,8 @@ A simple interactive chat interface that supports:
 Usage:
   streamlit run app/chat_ui.py -- --memory nohistory --llm openai --model gpt-4o-mini
   streamlit run app/chat_ui.py -- --memory mem0 --num-memories 5
+  streamlit run app/chat_ui.py -- --memory simplemem --model gpt-4o-mini
+  streamlit run app/chat_ui.py -- --memory simplemem --simplemem-db-path ./my_memory_db
 """
 
 import argparse
@@ -34,6 +36,7 @@ from src import (
     OpenAILLM,
     OllamaLLM,
     SimpleHistoryMemorySystem,
+    SimpleMemMemorySystem,
     SimplePromptTemplate,
 )
 from src.types import ConversationID
@@ -73,6 +76,14 @@ def create_memory_system(memory_type: str, **kwargs):
             evo_threshold=kwargs.pop("evo_threshold", 10),
             api_key=kwargs.pop("api_key", os.getenv("OPENAI_KEY")),
             **kwargs,
+        )
+    elif memory_type == "simplemem":
+        return SimpleMemMemorySystem(
+            api_key=kwargs.pop("api_key", os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")),
+            model=kwargs.pop("model", None),
+            base_url=kwargs.pop("base_url", None),
+            db_path=kwargs.pop("db_path", None),
+            clear_db=kwargs.pop("clear_db", False),
         )
     else:
         raise ValueError(f"Unknown memory system: {memory_type}")
@@ -250,7 +261,7 @@ def main():
             args_list = args_list[args_list.index("--") + 1:]
         
         parser = argparse.ArgumentParser(description="Chat UI")
-        parser.add_argument("--memory", choices=["nohistory", "simple", "mem0", "amem"], default="nohistory")
+        parser.add_argument("--memory", choices=["nohistory", "simple", "mem0", "amem", "simplemem"], default="nohistory")
         parser.add_argument("--num-memories", type=int, default=5)
         parser.add_argument("--llm-backend", choices=["openai", "ollama"], default="openai")
         parser.add_argument("--llm-model", default="gpt-4o-mini")
@@ -263,6 +274,8 @@ def main():
         parser.add_argument("--max-tokens", type=int, default=512)
         parser.add_argument("--temperature", type=float, default=0.7)
         parser.add_argument("--prompt-template", choices=["simple", "conversation"], default="conversation")
+        parser.add_argument("--simplemem-db-path", default=None, help="LanceDB path for SimpleMem (default: SimpleMem config default)")
+        parser.add_argument("--simplemem-clear-db", action="store_true", help="Clear SimpleMem database on startup (default: keep existing memories)")
         
         try:
             st.session_state.args = parser.parse_args(args_list)
@@ -278,24 +291,30 @@ def main():
         with st.spinner("Initializing systems..."):
             try:
                 # Create memory system
-                memory_kwargs = {"num_memories": args.num_memories}
-                # mem0 always uses shared_user_id="shared_user" by default in chat UI
                 if args.memory == "mem0":
-                    # Configure embedding for mem0 if provided
+                    memory_kwargs = {"num_memories": args.num_memories}
                     if args.embedding_provider and args.embedding_model:
                         memory_kwargs["embedding_provider"] = args.embedding_provider
                         memory_kwargs["embedding_model"] = args.embedding_model
-                        # If using Ollama, pass the base URL
                         if args.embedding_provider == "ollama":
                             memory_kwargs["ollama_base_url"] = args.ollama_base_url
                 elif args.memory == "amem":
-                    memory_kwargs.update({
+                    memory_kwargs = {
+                        "num_memories": args.num_memories,
                         "llm_backend": args.llm_backend,
                         "llm_model": args.llm_model,
                         "embedding_model": args.embedding_model,
                         "evo_threshold": args.evo_threshold,
-                    })
-                
+                    }
+                elif args.memory == "simplemem":
+                    memory_kwargs = {
+                        "model": args.model,
+                        "db_path": args.simplemem_db_path,
+                        "clear_db": args.simplemem_clear_db,
+                    }
+                else:
+                    memory_kwargs = {}
+
                 st.session_state.memory_system = create_memory_system(args.memory, **memory_kwargs)
 
                 # Create LLM
@@ -360,8 +379,8 @@ def main():
 
         st.divider()
         
-        # Show all memories button for mem0
-        if args.memory == "mem0" and st.session_state.memory_system:
+        # Show all memories button for mem0 / simplemem
+        if args.memory in ("mem0", "simplemem") and st.session_state.memory_system:
             if st.button("📚 View All Memories", use_container_width=True):
                 st.session_state.show_all_memories = True
                 st.rerun()
@@ -374,6 +393,10 @@ def main():
         st.text(f"LLM: {args.llm} ({args.model})")
         if args.memory in ["mem0", "amem"]:
             st.text(f"Memories: {args.num_memories}")
+        if args.memory == "simplemem":
+            db_label = args.simplemem_db_path or "default"
+            st.text(f"DB: {db_label}")
+            st.text(f"Persist: {'no (cleared)' if args.simplemem_clear_db else 'yes'}")
 
     # Show all memories modal/dialog
     if st.session_state.show_all_memories and args.memory == "mem0" and st.session_state.memory_system:
@@ -442,6 +465,51 @@ def main():
         
         st.divider()
     
+    # SimpleMem — View All Memories panel
+    if st.session_state.show_all_memories and args.memory == "simplemem" and st.session_state.memory_system:
+        st.title("📚 SimpleMem — All Memories")
+        st.caption("All memory entries stored in LanceDB across conversations")
+
+        try:
+            table = st.session_state.memory_system._system.vector_store.table
+            df = table.to_pandas()
+
+            if not df.empty:
+                st.success(f"Found {len(df)} memory entries")
+                for i, row in df.iterrows():
+                    label = str(row.get("lossless_restatement", ""))[:80] or f"Entry {i + 1}"
+                    trailing = "..." if len(str(row.get("lossless_restatement", ""))) > 80 else ""
+                    with st.expander(f"[{i + 1}] {label}{trailing}", expanded=False):
+                        st.markdown(f"**Memory:** {row.get('lossless_restatement', '—')}")
+                        if row.get("topic"):
+                            st.markdown(f"**Topic:** {row['topic']}")
+                        kw = row.get("keywords")
+                        if kw is not None and len(kw) > 0:
+                            st.markdown(f"**Keywords:** {', '.join(kw)}")
+                        persons = row.get("persons")
+                        if persons is not None and len(persons) > 0:
+                            st.markdown(f"**Persons:** {', '.join(persons)}")
+                        entities = row.get("entities")
+                        if entities is not None and len(entities) > 0:
+                            st.markdown(f"**Entities:** {', '.join(entities)}")
+                        if row.get("location"):
+                            st.markdown(f"**Location:** {row['location']}")
+                        if row.get("timestamp"):
+                            st.markdown(f"**Timestamp:** {row['timestamp']}")
+            else:
+                st.info("No memories stored yet. Start a conversation to build memory.")
+        except Exception as e:
+            import traceback
+            st.error(f"Error reading SimpleMem database: {e}")
+            with st.expander("Error details"):
+                st.code(traceback.format_exc())
+
+        if st.button("Close", use_container_width=True):
+            st.session_state.show_all_memories = False
+            st.rerun()
+
+        st.divider()
+
     # Main chat area
     st.title("💬 Chat Interface")
     
