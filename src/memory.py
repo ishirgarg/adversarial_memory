@@ -5,6 +5,7 @@ This module provides base memory system implementations. Each system manages
 its own internal state (both global and per-conversation memory).
 """
 
+from typing import Optional
 from .types import Conversation, LLMResponse, Prompt
 from .amem import AgenticMemorySystem, MemoryNote
 import mem0
@@ -298,3 +299,83 @@ class AMEMMemorySystem:
         """
         note_content = f"User: {prompt}\nAssistant: {response}"
         self._memory.add_note(note_content)
+
+
+class SimpleMemMemorySystem:
+    """
+    Memory system using SimpleMem's three-stage pipeline.
+
+    Wraps the SimpleMem system (from the SimpleMem/ directory) to conform to
+    the MemorySystem protocol used by the evaluation framework.
+
+    SimpleMem uses:
+    1. Semantic Structured Compression: converts dialogues into atomic memory entries
+    2. Online Semantic Synthesis: intra-session consolidation during write
+    3. Intent-Aware Retrieval Planning: multi-view hybrid retrieval (semantic/lexical/symbolic)
+    """
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        base_url: Optional[str] = None,
+        db_path: Optional[str] = None,
+        clear_db: bool = True,
+        **kwargs,
+    ):
+        """
+        Initialize the SimpleMem memory system.
+
+        Args:
+            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var via SimpleMem config)
+            model: LLM model name (defaults to SimpleMem config LLM_MODEL)
+            base_url: Custom API base URL (defaults to SimpleMem config OPENAI_BASE_URL)
+            db_path: Path for LanceDB vector store storage
+            clear_db: Whether to clear existing database on init (recommended: True)
+            **kwargs: Additional arguments forwarded to SimpleMemSystem
+        """
+        import sys
+        from pathlib import Path
+
+        simplemem_dir = str(Path(__file__).parent.parent / "SimpleMem")
+        if simplemem_dir not in sys.path:
+            sys.path.insert(0, simplemem_dir)
+
+        from main import SimpleMemSystem  # type: ignore
+
+        self._system = SimpleMemSystem(
+            api_key=api_key,
+            model=model,
+            base_url=base_url,
+            db_path=db_path,
+            clear_db=clear_db,
+            **kwargs,
+        )
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        """
+        Retrieve relevant memories using SimpleMem's hybrid retrieval.
+
+        Uses the three-layer retrieval (semantic, lexical, symbolic) and formats
+        the retrieved memory entries as a context string.
+        """
+        contexts = self._system.hybrid_retriever.retrieve(prompt)
+        if not contexts:
+            return ""
+        return self._system.answer_generator._format_contexts(contexts)
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
+    ) -> None:
+        """
+        Add the prompt and response as dialogues to SimpleMem's memory.
+
+        Each user/assistant exchange is stored as two dialogue entries, then
+        finalized so the memory is immediately available for retrieval.
+        """
+        import time
+
+        timestamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+        self._system.add_dialogue("User", prompt, timestamp)
+        self._system.add_dialogue("Assistant", response, timestamp)
+        self._system.finalize()
