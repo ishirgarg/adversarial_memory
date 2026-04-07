@@ -381,46 +381,13 @@ def main():
         st.caption("All memories for shared_user")
         
         try:
-            # Get all memories for the shared user
-            shared_user_id = st.session_state.memory_system.shared_user_id or "shared_user"
+            # Get all memories for the shared user using the helper method
+            all_memories = st.session_state.memory_system.get_all_memories()
             
-            # Try to get all memories using mem0's API
-            # mem0.Memory might have a get_all or similar method
-            # If not available, we'll try accessing the underlying client
-            memory_obj = st.session_state.memory_system.memory
-            
-            # Check if memory object has get_all method or client attribute
-            if hasattr(memory_obj, 'get_all'):
-                # Try with just user_id parameter first (no filters for all memories)
-                try:
-                    all_memories = memory_obj.get_all(user_id=shared_user_id)
-                except Exception:
-                    # If that fails, try with empty filters
-                    all_memories = memory_obj.get_all(
-                        user_id=shared_user_id,
-                        filters={}
-                    )
-            elif hasattr(memory_obj, 'client') and hasattr(memory_obj.client, 'get_all'):
-                # Try with just user_id parameter first
-                try:
-                    all_memories = memory_obj.client.get_all(user_id=shared_user_id)
-                except Exception:
-                    # If that fails, try with empty filters
-                    all_memories = memory_obj.client.get_all(
-                        user_id=shared_user_id,
-                        filters={}
-                    )
-            else:
-                # Fallback: try to search with a very broad query and high limit
-                # This is not ideal but works if get_all is not available
-                st.warning("Direct get_all not available, using search fallback")
-                search_result = memory_obj.search(query="", user_id=shared_user_id, limit=1000)
-                all_memories = {"results": search_result.get("results", [])}
-            
-            if all_memories and "results" in all_memories and len(all_memories["results"]) > 0:
-                st.success(f"Found {len(all_memories['results'])} memories")
+            if all_memories and len(all_memories) > 0:
+                st.success(f"Found {len(all_memories)} memories")
                 
-                for i, memory in enumerate(all_memories["results"], 1):
+                for i, memory in enumerate(all_memories, 1):
                     with st.expander(f"Memory {i}", expanded=False):
                         if isinstance(memory, dict):
                             # Display all fields in the memory

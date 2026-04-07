@@ -175,6 +175,64 @@ class Mem0MemorySystem:
         ]
         self.memory.add(messages, user_id=user_id)
 
+    def get_all_memories(self, user_id: str | None = None) -> list[dict]:
+        """
+        Get all memories for a given user_id.
+        
+        Args:
+            user_id: User ID to get memories for. If None, uses shared_user_id or "shared_user".
+        
+        Returns:
+            List of memory dictionaries. Each memory dict contains fields like 'memory', 'id', etc.
+        """
+        if user_id is None:
+            user_id = self.shared_user_id or "shared_user"
+        
+        # Try to get all memories using mem0's API
+        # Check if memory object has get_all method or client attribute
+        if hasattr(self.memory, 'get_all'):
+            # Try with just user_id parameter first (no filters for all memories)
+            try:
+                all_memories = self.memory.get_all(user_id=user_id)
+            except Exception:
+                # If that fails, try with empty filters
+                try:
+                    all_memories = self.memory.get_all(
+                        user_id=user_id,
+                        filters={}
+                    )
+                except Exception:
+                    # Fallback: try to search with a very broad query and high limit
+                    search_result = self.memory.search(query="", user_id=user_id, limit=1000)
+                    all_memories = {"results": search_result.get("results", [])}
+        elif hasattr(self.memory, 'client') and hasattr(self.memory.client, 'get_all'):
+            # Try with just user_id parameter first
+            try:
+                all_memories = self.memory.client.get_all(user_id=user_id)
+            except Exception:
+                # If that fails, try with empty filters
+                try:
+                    all_memories = self.memory.client.get_all(
+                        user_id=user_id,
+                        filters={}
+                    )
+                except Exception:
+                    # Fallback: try to search with a very broad query and high limit
+                    search_result = self.memory.search(query="", user_id=user_id, limit=1000)
+                    all_memories = {"results": search_result.get("results", [])}
+        else:
+            # Fallback: try to search with a very broad query and high limit
+            search_result = self.memory.search(query="", user_id=user_id, limit=1000)
+            all_memories = {"results": search_result.get("results", [])}
+        
+        # Extract results from the response
+        if all_memories and "results" in all_memories:
+            return all_memories["results"]
+        elif isinstance(all_memories, list):
+            return all_memories
+        else:
+            return []
+
 
 class AMEMMemorySystem:
     """
