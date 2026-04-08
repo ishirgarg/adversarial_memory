@@ -1,0 +1,11 @@
+{
+  "total_questions": 98,
+  "total_correct": 48,
+  "aggregate_accuracy": 0.4897959183673469,
+  "base_question_total": 49,
+  "base_question_correct": 38,
+  "base_question_accuracy": 0.7755102040816326,
+  "misleading_question_total": 49,
+  "misleading_question_correct": 10,
+  "misleading_question_accuracy": 0.20408163265306123
+}

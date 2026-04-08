@@ -57,10 +57,11 @@ class ConversationHistoryPromptTemplate:
         prompt = f"""You are an intelligent memory assistant tasked with answering questions using information from past conversation memories.
 
 # CONTEXT:
-You have access to memories from previous conversations as well as the conversation history.
+You have access to memories from previous conversations as well as the conversation history that may be helpful in answering the question..
 
 # INSTRUCTIONS:
 Answer the user's question. You may use the provided memories if they are helpful. If the user does not ask a question, you do not need to respond nor verify the statement as if it were a question, just respond as normal and update your memory with the new information.
+If you use the memories above to answer a question, please EXPLICITLY RESTATE which memories you used below, or state that you used no memories. You should only use and restate those memories if you explicitly used them to draw conclusions from them.
 Conversation History:
 {format_history(conversation)}
 Relevant Memories:
