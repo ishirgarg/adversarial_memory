@@ -47,7 +47,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 def _load_rows(input_csv: Path) -> List[Dict[str, str]]:
     with open(input_csv, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        required = ["original_fact", "modified_fact", "question", "ground_truth_answer"]
+        required = ["original_fact", "essay"]
         if not reader.fieldnames:
             raise ValueError("Input CSV is empty or missing headers.")
         missing = [c for c in required if c not in reader.fieldnames]
@@ -83,9 +83,9 @@ def relabel_rows_single_call(
                 "row_id": idx,
                 "replacement_name": assigned_name,
                 "original_fact": row["original_fact"],
-                "modified_fact": row["modified_fact"],
-                "question": row["question"],
-                "ground_truth_answer": row["ground_truth_answer"],
+                "essay": row["essay"],
+                "question": row.get("question", ""),
+                "ground_truth_answer": row.get("ground_truth_answer", ""),
             }
         )
 
@@ -96,16 +96,23 @@ def relabel_rows_single_call(
 You will rewrite a dataset while relabeling each row to a specific replacement person name.
 The rewritten data must no longer be about "I/me/my". It must be about that named person.
 
+
+Examples:
+Original fact: I like pizza. I also like burgers.
+New fact: Ava Thompson likes pizza. She also likes burgers.
+Original question: Should I go to Dominoes or Pizza Hut?
+New questino: Should Ava Thompson go to Dominoes or Pizza Hut?
+
 Return strict JSON object with key "rows", where "rows" is a list of objects with:
 - row_id (int)
 - original_fact (string)
-- modified_fact (string)
+- essay (string)
 - question (string)
 - ground_truth_answer (string)
 
 Rules:
-1) For each row, use the provided replacement_name for all person references in all fields.
-2) Rewrite in third person about replacement_name. Do NOT use first-person voice ("I", "me", "my", "mine", "we", "our", "us").
+1) For each row, use the provided replacement_name for all person references in all fields (including original_fact, essay, and question). The sentences should sound natural; use pronouns when appropriate to ensure grammatical correctness.
+2) Do NOT use first-person voice ("I", "me", "my", "mine", "we", "our", "us").
 3) Keep semantics, style, and detail as close as possible.
 4) Do not invent extra facts.
 5) Keep output list length exactly the same as input.
@@ -130,7 +137,7 @@ Input rows:
             raise ValueError("Relabel output contains invalid row_id.")
         by_id[rid] = {
             "original_fact": str(r.get("original_fact", "")).strip(),
-            "modified_fact": str(r.get("modified_fact", "")).strip(),
+            "essay": str(r.get("essay", "")).strip(),
             "question": str(r.get("question", "")).strip(),
             "ground_truth_answer": str(r.get("ground_truth_answer", "")).strip(),
         }
@@ -143,16 +150,48 @@ Input rows:
     return result, assigned_names
 
 
-def build_adversarial_questions_single_call(
-    client: OpenAI, relabeled_rows: List[Dict[str, str]], assigned_names: List[str], seed: int
-) -> List[str]:
-    rng = random.Random(seed + 1)
-    payload: List[Dict[str, Any]] = []
+def _adversarial_prompt(rows_payload: List[Dict[str, Any]]) -> str:
+    return f"""
+You will rewrite each question so that it asks about a different person name, while preserving FIRST-PERSON voice and the rest of the wording.
 
+Examples:
+Original question: What should I do with Jane?
+New question: What should I do with Ava Thompson?
+
+Return strict JSON object with key "rows", where each object has:
+- row_id (int)
+- adversarial_question (string)
+
+Rules:
+1) Use the provided target_name exactly as given for that row.
+2) Do not choose your own names.
+3) Preserve FIRST-PERSON voice (e.g., keep "I", "me", "my") and all other wording wherever possible.
+4) Replace only the PERSON being referred to inside the question with target_name (e.g., replace "Jane" with target_name).
+5) If there is no explicit person name in the original question, minimally adapt it to include target_name naturally, without adding extra assumptions.
+6) Preserve row_id exactly and output exactly one rewritten question per input row.
+7) Output ONLY valid JSON.
+
+Input:
+{json.dumps(rows_payload, ensure_ascii=False)}
+""".strip()
+
+
+def _build_one_adversarial_pass(
+    client: OpenAI,
+    relabeled_rows: List[Dict[str, str]],
+    assigned_names: List[str],
+    rng: random.Random,
+    excluded_names_per_row: List[set],
+) -> List[str]:
+    """Generate one adversarial question per row, picking names not in each row's excluded set."""
+    payload: List[Dict[str, Any]] = []
     for idx, row in enumerate(relabeled_rows):
-        forbidden_name = assigned_names[idx]
-        candidate_names = [n for n in NAME_POOL if n != forbidden_name]
-        target_name = rng.choice(candidate_names) if candidate_names else forbidden_name
+        forbidden = excluded_names_per_row[idx]
+        candidates = [n for n in NAME_POOL if n not in forbidden]
+        # Fall back to any name other than the assigned one if pool is exhausted
+        if not candidates:
+            candidates = [n for n in NAME_POOL if n != assigned_names[idx]]
+        target_name = rng.choice(candidates) if candidates else assigned_names[idx]
         payload.append(
             {
                 "row_id": idx,
@@ -161,30 +200,7 @@ def build_adversarial_questions_single_call(
             }
         )
 
-    prompt = f"""
-You will rewrite each question so that the fact(s) are written about a different person name.
-
-Example:
-Original fact: I like pizza. I also like burgers.
-New fact: Ava Thompson likes pizza. She also likes burgers.
-
-Return strict JSON object with key "rows", where each row has:
-- row_id (int)
-- adversarial_question (string)
-
-Rules:
-1) Use the provided target_name exactly as given for that row.
-2) Do not choose your own names.
-3) Keep the question intent and structure as close as possible.
-4) Ensure the rewritten question is explicitly about target_name in third person.
-5) Do NOT use first-person voice ("I", "me", "my", "mine", "we", "our", "us").
-6) Preserve row_id exactly and output exactly one rewritten question per input row.
-7) Output ONLY valid JSON.
-
-Input:
-{json.dumps(payload, ensure_ascii=False)}
-""".strip()
-
+    prompt = _adversarial_prompt(payload)
     parsed = _chat_json(client, prompt)
     out_rows = parsed.get("rows")
     if not isinstance(out_rows, list):
@@ -202,34 +218,12 @@ Input:
             by_id[rid] = q
 
     def _retry_single_row(row_id: int) -> str:
-        retry_prompt = f"""
-You will rewrite each question so that the fact(s) are written about a different person name.
-
-Example:
-Original fact: I like pizza. I also like burgers.
-New fact: Ava Thompson likes pizza. She also likes burgers.
-
-Return strict JSON object with key "rows", where "rows" is a list containing exactly one object:
-- row_id (int)
-- adversarial_question (string)
-
-Rules:
-1) Use target_name exactly as provided.
-2) Do not choose your own name.
-3) Keep question intent and structure as close as possible.
-4) Ensure the rewritten question is explicitly about target_name in third person.
-5) Do NOT use first-person voice ("I", "me", "my", "mine", "we", "our", "us").
-6) Preserve row_id exactly.
-7) Output ONLY valid JSON.
-
-Input:
-{json.dumps([{
-    "row_id": row_id,
-    "target_name": target_by_id[row_id],
-    "question": source_question_by_id[row_id],
-}], ensure_ascii=False)}
-""".strip()
-
+        single_payload = [{
+            "row_id": row_id,
+            "target_name": target_by_id[row_id],
+            "question": source_question_by_id[row_id],
+        }]
+        retry_prompt = _adversarial_prompt(single_payload)
         last_err: Exception | None = None
         for _ in range(MAX_ROW_RETRIES):
             try:
@@ -253,28 +247,159 @@ Input:
         q = by_id.get(i)
         if not q:
             q = _retry_single_row(i)
+        # Record the name used so subsequent passes avoid it
+        excluded_names_per_row[i].add(target_by_id[i])
         questions.append(q)
     return questions
 
 
-def generate_pii_dataset(input_csv: Path, output_csv: Path, api_key: str, seed: int) -> None:
+def build_adversarial_questions_multi(
+    client: OpenAI,
+    relabeled_rows: List[Dict[str, str]],
+    assigned_names: List[str],
+    seed: int,
+    num_adversarial: int = 1,
+) -> List[List[str]]:
+    """
+    Generate `num_adversarial` adversarial questions per row.
+
+    Each adversarial question uses a different randomly chosen name (no repeats
+    within the same row across passes). Returns a list of length len(relabeled_rows),
+    where each element is a list of `num_adversarial` question strings.
+    """
+    rng = random.Random(seed + 1)
+    # Start with the assigned name excluded so we never ask about the correct person
+    excluded_per_row: List[set] = [{name} for name in assigned_names]
+
+    all_passes: List[List[str]] = []
+    for _ in range(num_adversarial):
+        pass_questions = _build_one_adversarial_pass(
+            client, relabeled_rows, assigned_names, rng, excluded_per_row
+        )
+        all_passes.append(pass_questions)
+
+    # Transpose: from [pass][row] -> [row][pass]
+    return [
+        [all_passes[p][row_idx] for p in range(num_adversarial)]
+        for row_idx in range(len(relabeled_rows))
+    ]
+
+
+def _clean_question(q: str) -> str:
+    q = q.strip()
+    if q.startswith('"') and q.endswith('"'):
+        q = q[1:-1]
+    if not q.endswith("?"):
+        if any(q.startswith(w) for w in ["Should", "What", "How", "Why", "When", "Where", "Who", "Can", "Will", "Would"]):
+            q = q + "?"
+    return q
+
+
+def generate_multiple_questions_from_essays(
+    client: OpenAI, rows: List[Dict[str, str]], num_questions: int
+) -> List[List[str]]:
+    """
+    Generate `num_questions` distinct, natural questions per row.
+
+    Each question targets a different aspect of the essay so that the N positive
+    examples are meaningfully varied before being converted to adversarial negatives.
+    Returns a list of length len(rows), where each element is a list of num_questions strings.
+    """
+    all_questions: List[List[str]] = []
+    for row in rows:
+        essay = row["essay"]
+        prompt = f"""You are given information about a person:
+ESSAY:
+\"\"\"{essay}\"\"\"
+
+Generate exactly {num_questions} DISTINCT questions about this person, each targeting a different aspect of the essay.
+
+Core rule -- NO embedded assumptions:
+The question must be one that ANY person in the world could plausibly ask about someone they know, WITHOUT already knowing the details in the essay.
+Do NOT smuggle facts from the essay into the question itself.
+
+Tests to apply before accepting a question:
+- Could someone who has never read the essay still naturally ask this question? If yes, it is acceptable.
+- Does the question presuppose that a specific event occurred, or that the person has a specific trait/possession/location? If yes, reject it.
+
+BAD (embed facts as assumptions):
+- "What did the vendor say about the blue mug when Mara bought it?" -- assumes Mara bought a mug from a vendor
+- "What kind of work does Mara do downtown near the Pearl District?" -- assumes she works near the Pearl District
+- "What apple dessert can I give Rob that won't make him itch?" -- assumes the asker knows about the allergy
+- "If Pesto slips out when I open the door, what sound should I make?" -- assumes a specific scenario
+
+GOOD (open questions answerable from the essay):
+- "What should I get Mara for her birthday?" -- open; essay details let you answer it specifically
+- "What dessert should I make for Aunt Sally?" -- open; essay reveals the allergy that answers it
+- "Should I suggest somewhere quiet for lunch with Marcus?" -- open; essay reveals why quiet matters
+- "What kind of work does Jordan do?" -- open; does not embed the answer as an assumption
+
+Additional requirements:
+1) Each question must be answerable using specific details from the essay (not general knowledge alone)
+2) All questions MUST be in first person ("What should I get...", "Should I invite...", "Is it okay if I...")
+3) Questions must be DISTINCT from each other -- each targets a different aspect of the essay
+4) Do NOT restate or reformat the original fact directly as a question
+
+Return a JSON object with key "questions" containing a list of exactly {num_questions} question strings.
+Output ONLY valid JSON."""
+        parsed = _chat_json(client, prompt)
+        raw_questions = parsed.get("questions", [])
+        if not isinstance(raw_questions, list):
+            raw_questions = []
+        cleaned = [_clean_question(q) for q in raw_questions if isinstance(q, str) and q.strip()]
+
+        # Retry once if we didn't get enough
+        if len(cleaned) < num_questions:
+            parsed2 = _chat_json(client, prompt)
+            raw2 = parsed2.get("questions", [])
+            if isinstance(raw2, list):
+                cleaned = [_clean_question(q) for q in raw2 if isinstance(q, str) and q.strip()]
+
+        # Pad with copies of the first question as a last resort
+        while len(cleaned) < num_questions:
+            cleaned.append(cleaned[0] if cleaned else "")
+
+        all_questions.append(cleaned[:num_questions])
+    return all_questions
+
+
+def generate_pii_dataset(
+    input_csv: Path, output_csv: Path, api_key: str, seed: int, num_adversarial: int = 1
+) -> None:
     rows = _load_rows(input_csv)
     if not rows:
         raise ValueError("Input CSV has no data rows.")
 
     client = OpenAI(api_key=api_key)
 
-    # Step 1: relabel entire dataset in one model call
+    # Step 1: relabel entire dataset in one model call (fact + essay to named third-person)
     relabeled_rows, assigned_names = relabel_rows_single_call(client, rows, seed)
 
-    # Step 3: generate all adversarial-name questions in one model call
-    adversarial_questions = build_adversarial_questions_single_call(
-        client, relabeled_rows, assigned_names, seed
+    # Step 2: generate num_adversarial DISTINCT questions per relabeled essay
+    questions_per_row = generate_multiple_questions_from_essays(
+        client, relabeled_rows, num_questions=num_adversarial
     )
 
-    # Step 4: store the adversarial question in a new column on the same row
+    # Step 3: expand -- one row per (persona, question) pair, all sharing the same assigned name
+    expanded_rows: List[Dict[str, str]] = []
+    expanded_assigned_names: List[str] = []
+    for base_row, assigned_name, questions in zip(relabeled_rows, assigned_names, questions_per_row):
+        for q in questions:
+            row_copy = dict(base_row)
+            row_copy["question"] = q
+            expanded_rows.append(row_copy)
+            expanded_assigned_names.append(assigned_name)
+
+    # Step 4: single adversarial pass -- one name-substituted question per expanded row
+    rng = random.Random(seed + 1)
+    excluded_per_row: List[set] = [{name} for name in expanded_assigned_names]
+    adversarial_questions = _build_one_adversarial_pass(
+        client, expanded_rows, expanded_assigned_names, rng, excluded_per_row
+    )
+
+    # Step 5: emit final rows
     output_rows: List[Dict[str, str]] = []
-    for base_row, adv_q in zip(relabeled_rows, adversarial_questions):
+    for base_row, adv_q in zip(expanded_rows, adversarial_questions):
         row_out = dict(base_row)
         row_out["misleading_question"] = adv_q
         output_rows.append(row_out)
@@ -283,7 +408,7 @@ def generate_pii_dataset(input_csv: Path, output_csv: Path, api_key: str, seed: 
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
         fieldnames = [
             "original_fact",
-            "modified_fact",
+            "essay",
             "question",
             "ground_truth_answer",
             "misleading_question",
@@ -321,6 +446,12 @@ def main() -> None:
         help="Random seed for deterministic name selection.",
     )
     parser.add_argument(
+        "--num-adversarial",
+        type=int,
+        default=3,
+        help="Number of adversarial questions to generate per persona (each with a different name).",
+    )
+    parser.add_argument(
         "--api-key",
         type=str,
         default=None,
@@ -337,6 +468,7 @@ def main() -> None:
         output_csv=Path(args.output_csv),
         api_key=api_key,
         seed=args.seed,
+        num_adversarial=args.num_adversarial,
     )
 
 

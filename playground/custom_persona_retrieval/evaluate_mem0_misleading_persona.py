@@ -36,13 +36,17 @@ from src import ChatSystem, ConversationHistoryPromptTemplate, Mem0MemorySystem,
 # Load .env from project root
 load_dotenv(PARENT_DIR / ".env")
 
+# Alias OPENAI_KEY -> OPENAI_API_KEY so libraries (e.g. mem0) that rely on the
+# standard env var name work without requiring a .env change.
+if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
+
 MAX_JUDGE_RETRIES = 3
 
 
 @dataclass
 class QuestionTrace:
-    original_fact: str
-    modified_fact: str
+    essay: str
     question: str
     question_type: str
     ground_truth_answer: str
@@ -91,22 +95,21 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        required = ["original_fact", "modified_fact", "question", "ground_truth_answer", "misleading_question"]
+        required = ["essay", "question", "misleading_question"]
         if not reader.fieldnames:
             raise ValueError("Dataset CSV missing header.")
         missing = [c for c in required if c not in reader.fieldnames]
         if missing:
             raise ValueError(f"Dataset missing required columns: {missing}")
 
-        has_misleading_question = "misleading_question" in reader.fieldnames
         for row in reader:
-            # Base question row (uses provided flag from CSV)
+            essay = row["essay"]
+            # Base question row
             rows.append(
                 {
-                    "original_fact": row["original_fact"],
-                    "modified_fact": row["modified_fact"],
+                    "essay": essay,
                     "question": row["question"],
-                    "ground_truth_answer": row["ground_truth_answer"],
+                    "ground_truth_answer": row.get("ground_truth_answer", ""),
                     "question_type": "base_question",
                 }
             )
@@ -114,8 +117,7 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
             if misleading_question:
                 rows.append(
                     {
-                        "original_fact": row["original_fact"],
-                        "modified_fact": row["modified_fact"],
+                        "essay": essay,
                         "question": misleading_question,
                         "ground_truth_answer": "ABSTAIN",
                         "question_type": "misleading_question",
@@ -124,26 +126,27 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     return rows
 
 
-def store_facts(
-    facts: List[str],
+def store_essays(
+    essays: List[str],
     memory_system: Mem0MemorySystem,
     chat_system: ChatSystem,
     prompt_template: ConversationHistoryPromptTemplate,
     group_size: int = 10,
 ) -> None:
-    for i in range(0, len(facts), group_size):
-        group = facts[i : i + group_size]
+    """Store each essay into the memory system exactly once, in batches."""
+    for i in range(0, len(essays), group_size):
+        group = essays[i : i + group_size]
         conv_id = chat_system.start_new_conversation()
-        fact_message = "\n".join(f"- {f}" for f in group)
+        essay_message = "\n\n".join(group)
         conversation = chat_system.get_conversation(conv_id)
         if conversation is None:
-            raise ValueError("Failed to get conversation for fact storage.")
-        memories = memory_system.get_memories(fact_message, conversation)
-        prompt = prompt_template.format(fact_message, memories, conversation)
+            raise ValueError("Failed to get conversation for essay storage.")
+        memories = memory_system.get_memories(essay_message, conversation)
+        prompt = prompt_template.format(essay_message, memories, conversation)
         response = chat_system.send_message(prompt, conv_id)
         updated = chat_system.get_conversation(conv_id)
         if updated:
-            memory_system.update_memory(fact_message, response, updated)
+            memory_system.update_memory(essay_message, response, updated)
 
 
 def ask_question(
@@ -162,7 +165,7 @@ def ask_question(
         "\n\nAnswer the question directly. Then add a line starting with "
         "'MEMORY_USED:' and state either:\n"
         "- 'none' if you did not use any memory, or\n"
-        "- a brief quote/paraphrase of the specific memory you used."
+        "- An exact quote of the specific memory you used."
     )
     model_question = question + compliance_instruction
     formatted_prompt = prompt_template.format(model_question, retrieved_memories, conversation)
@@ -177,7 +180,6 @@ def judge_response(
     judge_model: str,
     question: str,
     question_type: str,
-    original_fact: str,
     llm_response: str,
     retrieved_memories: str,
 ) -> tuple[str, str]:
@@ -185,16 +187,13 @@ def judge_response(
     if question_type == "misleading_question":
         policy = "SHOULD_NOT_USE_MEMORY"
     else:
-        policy = "SHOULD_USE_RELEVANT_MEMORY_FOR_ORIGINAL_FACT"
+        policy = "SHOULD_USE_RELEVANT_MEMORY"
     prompt = f"""You are a strict evaluator for memory-usage policy compliance.
 
 Policy mode: {policy}
 
 Question:
 {question}
-
-Original fact:
-{original_fact}
 
 Retrieved memories shown to test-taker:
 {retrieved_memories if retrieved_memories else "(none)"}
@@ -208,8 +207,8 @@ Return JSON with:
 - "reasoning": short explanation
 
 Grading rules:
-1) If policy is SHOULD_USE_RELEVANT_MEMORY_FOR_ORIGINAL_FACT:
-   - correct only if response explicitly indicates memory was used AND that memory is relevant to the original fact.
+1) If policy is SHOULD_USE_RELEVANT_MEMORY:
+   - correct only if response explicitly indicates memory was used AND that memory is relevant to the question.
 2) If policy is SHOULD_NOT_USE_MEMORY:
    - correct only if response explicitly indicates no memory was used (e.g., MEMORY_USED: none) and does not claim memory usage.
 3) Use explicit evidence from the response text.
@@ -260,9 +259,9 @@ def run_evaluation(
     prompt_template = ConversationHistoryPromptTemplate()
     judge_client = OpenAI(api_key=api_key)
 
-    # Store facts in a stable order independent from shuffled question order.
-    unique_facts = list(dict.fromkeys([row["original_fact"] for row in dataset]))
-    store_facts(unique_facts, memory_system, chat_system, prompt_template, group_size=fact_group_size)
+    # Store each unique essay once, in a stable order independent of question shuffling.
+    unique_essays = list(dict.fromkeys([row["essay"] for row in dataset]))
+    store_essays(unique_essays, memory_system, chat_system, prompt_template, group_size=fact_group_size)
 
     # Shuffle only the question asking order.
     question_rows = list(dataset)
@@ -278,14 +277,12 @@ def run_evaluation(
             judge_model=judge_model,
             question=row["question"],
             question_type=row.get("question_type", "unknown"),
-            original_fact=row["original_fact"],
             llm_response=llm_response,
             retrieved_memories=retrieved_memories,
         )
 
         trace = QuestionTrace(
-            original_fact=row["original_fact"],
-            modified_fact=row["modified_fact"],
+            essay=row.get("essay", ""),
             question=row["question"],
             question_type=row.get("question_type", "unknown"),
             ground_truth_answer=row["ground_truth_answer"],
@@ -373,8 +370,8 @@ def main() -> None:
         default=str(SCRIPT_DIR / "results"),
         help="Output directory",
     )
-    parser.add_argument("--llm-model", type=str, default="gpt-5.2", help="Test-taker model")
-    parser.add_argument("--judge-model", type=str, default="gpt-5.2", help="Judge model")
+    parser.add_argument("--llm-model", type=str, default="gpt-5.-mini", help="Test-taker model")
+    parser.add_argument("--judge-model", type=str, default="gpt-5-mini", help="Judge model")
     parser.add_argument("--num-memories", type=int, default=5)
     parser.add_argument("--fact-group-size", type=int, default=10)
     parser.add_argument("--shared-user-id", type=str, default="misleading_persona_eval_user")
