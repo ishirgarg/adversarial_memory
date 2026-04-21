@@ -40,7 +40,7 @@ if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
     os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = "gpt-5.4-nano"
 DEFAULT_WORKERS = 8
 
 # ---------------------------------------------------------------------------
@@ -143,7 +143,8 @@ SCHEMA = {
 def format_all_memories(all_memories_at_time: list) -> str:
     if not all_memories_at_time:
         return "(no memories in store)"
-    return "\n".join(f"- {m['memory']}" for m in all_memories_at_time)
+    entries = [m if isinstance(m, str) else m["memory"] for m in all_memories_at_time]
+    return "\n".join(f"- {m}" for m in entries)
 
 
 def auto_detect_traces_file(results_dir: Path) -> Path:

@@ -1,97 +1,60 @@
 """
 Memory system implementations for LLM conversations.
-
-This module provides base memory system implementations. Each system manages
-its own internal state (both global and per-conversation memory).
 """
 
-from typing import Optional
-from .types import Conversation, LLMResponse, Prompt
-from .amem import AgenticMemorySystem, MemoryNote
-import mem0
 import os
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+import mem0
+
+from .amem import AgenticMemorySystem, MemoryNote
+from .types import Conversation, LLMResponse, Prompt
 
 
 class NoHistoryMemorySystem:
-    """
-    Memory system that ignores conversation history and returns the prompt as-is.
-    Stores no memory internally.
-    """
+    """Baseline that ignores conversation history and returns empty context."""
 
     def __init__(self, num_memories: int | None = None):
-        """
-        Initialize NoHistoryMemorySystem.
-        
-        Args:
-            num_memories: Maximum number of memories to return (ignored for this system).
-                Can be None for uncapped.
-        """
         self.num_memories = num_memories
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        """
-        Return the prompt as-is without any conversation history.
-        """
         return ""
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        """
-        No-op: This memory system stores no memory internally.
-        """
         pass
 
 
 class SimpleHistoryMemorySystem:
-    """
-    Simple memory system that prepends conversation history to the prompt.
-    Stores no memory internally - just uses the conversation history provided.
-    """
+    """Prepends raw conversation history to the prompt. Stores no memory internally."""
 
     def __init__(self, num_memories: int | None = None):
-        """
-        Initialize SimpleHistoryMemorySystem.
-        
-        Args:
-            num_memories: Maximum number of memories (message pairs) to return.
-                Can be None for uncapped (returns all history).
-        """
         self.num_memories = num_memories
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        """
-        Retrieve conversation history as memories, capped to num_memories if set.
-        """
         if not conversation.messages:
             return ""
 
-        # Cap the number of messages if num_memories is set
         messages_to_include = conversation.messages
         if self.num_memories is not None:
-            # Each "memory" is a user-assistant pair, so cap at num_memories pairs
-            # Since we have (user, assistant) pairs, we need 2 * num_memories messages
             max_messages = self.num_memories * 2
             if len(conversation.messages) > max_messages:
                 messages_to_include = conversation.messages[-max_messages:]
-        
-        # Format conversation history
+
         history_parts = []
         for msg in messages_to_include:
             history_parts.append(f"User: {msg.prompt}")
             history_parts.append(f"Assistant: {msg.response}")
 
-        # Return just the history (memories), not including current prompt
-        history_text = "\n".join(history_parts)
-        return history_text
+        return "\n".join(history_parts)
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        """
-        No-op: This memory system stores no memory internally.
-        All memory comes from the conversation history.
-        """
         pass
 
 
@@ -99,8 +62,8 @@ class Mem0MemorySystem:
     """
     Memory system using mem0 (https://github.com/mem0ai/mem0).
 
-    Mem0 provides intelligent memory retrieval and storage, using semantic search
-    to find relevant memories and automatically extracting key information.
+    Uses semantic search to retrieve relevant memories and automatically
+    extracts key information from conversations.
     """
 
     def __init__(
@@ -111,127 +74,44 @@ class Mem0MemorySystem:
         embedding_model: str | None = None,
         **mem0_kwargs,
     ):
-        """
-        Initialize Mem0 memory system.
-
-        Args:
-            num_memories: Maximum number of relevant memories to retrieve (required).
-            shared_user_id: Optional shared user_id to use across all conversations.
-                If None, uses conversation_id as user_id (default behavior).
-            embedding_provider: Provider for embeddings (e.g., "openai", "ollama", "sentence-transformers").
-                If None, uses mem0's default (usually OpenAI).
-            embedding_model: Model name for embeddings (e.g., "text-embedding-3-small" for OpenAI,
-                "nomic-embed-text" for Ollama, "all-MiniLM-L6-v2" for sentence-transformers).
-            **mem0_kwargs: Additional arguments to pass to mem0.Memory() constructor
-                (e.g., vector_store, llm_config, etc.)
-        """
-        # Configure embedder if provided
         if embedding_provider and embedding_model:
-            embedder_config = {
+            embedder_config: dict = {
                 "provider": embedding_provider,
-                "config": {
-                    "model": embedding_model,
-                }
+                "config": {"model": embedding_model},
             }
-            # For Ollama, we might need to pass base_url if provided
             if embedding_provider == "ollama" and "ollama_base_url" in mem0_kwargs:
                 embedder_config["config"]["base_url"] = mem0_kwargs.pop("ollama_base_url")
             mem0_kwargs["embedder"] = embedder_config
-        
+
         self.memory = mem0.Memory(**mem0_kwargs)
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id
 
+    def _user_id(self, conversation: Conversation) -> str:
+        return self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
+
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        """
-        Retrieve relevant memories from mem0.
-        """
-        user_id = self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
-        # Search for relevant memories
-        relevant_memories = self.memory.search(
-            query=prompt, user_id=user_id, limit=self.num_memories
+        user_id = self._user_id(conversation)
+        results = self.memory.search(
+            query=prompt, top_k=self.num_memories, filters={"user_id": user_id}
         )
-        memories_str = "\n".join(
-            f"- {entry['memory']}" for entry in relevant_memories["results"]
-        )
-        return memories_str
+        return "\n".join(f"- {entry['memory']}" for entry in results["results"])
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        """
-        Update mem0 memory by adding the conversation to memory.
-
-        Args:
-            prompt: The prompt that was sent
-            response: The response received
-            conversation: The conversation history (includes the new message)
-        """
-        # Use shared_user_id if provided, otherwise use conversation_id
-        user_id = self.shared_user_id if self.shared_user_id is not None else str(conversation_history.conversation_id)
+        user_id = self._user_id(conversation_history)
         messages = [
             {"role": "user", "content": prompt},
             {"role": "assistant", "content": response},
         ]
         self.memory.add(messages, user_id=user_id)
 
-    def get_all_memories(self, user_id: str | None = None) -> list[dict]:
-        """
-        Get all memories for a given user_id.
-        
-        Args:
-            user_id: User ID to get memories for. If None, uses shared_user_id or "shared_user".
-        
-        Returns:
-            List of memory dictionaries. Each memory dict contains fields like 'memory', 'id', etc.
-        """
+    def get_all_memories(self, user_id: str | None = None) -> list[str]:
         if user_id is None:
             user_id = self.shared_user_id or "shared_user"
-        
-        # Try to get all memories using mem0's API
-        # Check if memory object has get_all method or client attribute
-        if hasattr(self.memory, 'get_all'):
-            # Try with just user_id parameter first (no filters for all memories)
-            try:
-                all_memories = self.memory.get_all(user_id=user_id)
-            except Exception:
-                # If that fails, try with empty filters
-                try:
-                    all_memories = self.memory.get_all(
-                        user_id=user_id,
-                        filters={}
-                    )
-                except Exception:
-                    # Fallback: try to search with a very broad query and high limit
-                    search_result = self.memory.search(query="", user_id=user_id, limit=1000)
-                    all_memories = {"results": search_result.get("results", [])}
-        elif hasattr(self.memory, 'client') and hasattr(self.memory.client, 'get_all'):
-            # Try with just user_id parameter first
-            try:
-                all_memories = self.memory.client.get_all(user_id=user_id)
-            except Exception:
-                # If that fails, try with empty filters
-                try:
-                    all_memories = self.memory.client.get_all(
-                        user_id=user_id,
-                        filters={}
-                    )
-                except Exception:
-                    # Fallback: try to search with a very broad query and high limit
-                    search_result = self.memory.search(query="", user_id=user_id, limit=1000)
-                    all_memories = {"results": search_result.get("results", [])}
-        else:
-            # Fallback: try to search with a very broad query and high limit
-            search_result = self.memory.search(query="", user_id=user_id, limit=1000)
-            all_memories = {"results": search_result.get("results", [])}
-        
-        # Extract results from the response
-        if all_memories and "results" in all_memories:
-            return all_memories["results"]
-        elif isinstance(all_memories, list):
-            return all_memories
-        else:
-            return []
+        result = self.memory.get_all(filters={"user_id": user_id})
+        return [entry["memory"] for entry in result.get("results", [])]
 
 
 class AMEMMemorySystem:
@@ -243,8 +123,7 @@ class AMEMMemorySystem:
     - LLM-driven note indexing (keywords, context, tags)
     - Semantic + BM25 hybrid retrieval via SimpleEmbeddingRetriever
     - Automatic memory evolution and cross-linking
-    - Linked-neighbor recall: each retrieved memory also pulls in its
-      Zettelkasten links, following the pattern in test_advanced.py
+    - Linked-neighbor recall following the test_advanced.py pattern
     """
 
     def __init__(
@@ -256,18 +135,6 @@ class AMEMMemorySystem:
         evo_threshold: int,
         api_key: str | None = None,
     ):
-        """
-        Initialize AMEMMemorySystem.
-
-        Args:
-            num_memories: Number of top-k memories to retrieve per query.
-                          Zettelkasten-linked neighbors are also returned.
-            llm_backend: LLM backend for A-MEM ("openai" or "ollama").
-            llm_model: LLM model for note generation and evolution.
-            embedding_model: Sentence-transformer model name for embeddings.
-            evo_threshold: How many memories before triggering evolution.
-            api_key: OpenAI API key (falls back to OPENAI_KEY env var).
-        """
         if api_key is None:
             api_key = os.getenv("OPENAI_KEY")
 
@@ -279,10 +146,6 @@ class AMEMMemorySystem:
             evo_threshold=evo_threshold,
             api_key=api_key,
         )
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _format_note(self, note: MemoryNote, label: str) -> str:
         lines = [f"{label}:"]
@@ -297,22 +160,10 @@ class AMEMMemorySystem:
             lines.append(f"  Keywords: {', '.join(str(k) for k in kws)}")
         return "\n".join(lines)
 
-    # ------------------------------------------------------------------
-    # MemorySystem protocol
-    # ------------------------------------------------------------------
-
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        """
-        Retrieve the k most relevant memories via semantic + BM25 search,
-        then follow each memory's Zettelkasten links to pull in related notes.
-
-        This mirrors the retrieve_memory() / find_related_memories_raw() pattern
-        from test_advanced.py in the WujiangXu/A-mem repository.
-        """
         if not self._memory.memories:
             return ""
 
-        # Retrieve top-k indices from the hybrid retriever
         indices = self._memory.retriever.search(prompt, k=self.num_memories)
         all_notes = list(self._memory.memories.values())
 
@@ -328,7 +179,6 @@ class AMEMMemorySystem:
             memory_parts.append(self._format_note(note, f"Memory {mem_num}"))
             mem_num += 1
 
-            # Follow Zettelkasten links (same logic as find_related_memories_raw)
             for j, neighbor_idx in enumerate(note.links):
                 if j >= self.num_memories:
                     break
@@ -347,26 +197,29 @@ class AMEMMemorySystem:
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        """
-        Store the latest exchange as a new note in A-MEM.
-
-        The full prompt+response is passed to add_note so A-MEM can:
-        - extract keywords and tags via LLM
-        - generate a context summary
-        - link to and evolve related existing memories
-        """
         note_content = f"User: {prompt}\nAssistant: {response}"
         self._memory.add_note(note_content)
+
+    def get_all_memories(self) -> list[str]:
+        parts = []
+        for note in self._memory.memories.values():
+            line = note.content
+            extras = []
+            if note.context:
+                extras.append(f"context: {note.context}")
+            if note.tags:
+                tags = note.tags if isinstance(note.tags, list) else list(note.tags)
+                extras.append(f"tags: {', '.join(str(t) for t in tags)}")
+            if extras:
+                line = f"{line} ({'; '.join(extras)})"
+            parts.append(line)
+        return parts
 
 
 class SimpleMemMemorySystem:
     """
     Memory system using SimpleMem's three-stage pipeline.
 
-    Wraps the SimpleMem system (from the SimpleMem/ directory) to conform to
-    the MemorySystem protocol used by the evaluation framework.
-
-    SimpleMem uses:
     1. Semantic Structured Compression: converts dialogues into atomic memory entries
     2. Online Semantic Synthesis: intra-session consolidation during write
     3. Intent-Aware Retrieval Planning: multi-view hybrid retrieval (semantic/lexical/symbolic)
@@ -374,6 +227,7 @@ class SimpleMemMemorySystem:
 
     def __init__(
         self,
+        num_memories: int | None = None,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -381,23 +235,42 @@ class SimpleMemMemorySystem:
         clear_db: bool = True,
         **kwargs,
     ):
-        """
-        Initialize the SimpleMem memory system.
+        self.num_memories = num_memories
+        simplemem_dir = Path(__file__).parent.parent / "SimpleMem"
+        simplemem_dir_str = str(simplemem_dir)
+        if simplemem_dir_str not in sys.path:
+            sys.path.insert(0, simplemem_dir_str)
 
-        Args:
-            api_key: OpenAI API key (defaults to OPENAI_API_KEY env var via SimpleMem config)
-            model: LLM model name (defaults to SimpleMem config LLM_MODEL)
-            base_url: Custom API base URL (defaults to SimpleMem config OPENAI_BASE_URL)
-            db_path: Path for LanceDB vector store storage
-            clear_db: Whether to clear existing database on init (recommended: True)
-            **kwargs: Additional arguments forwarded to SimpleMemSystem
-        """
-        import sys
-        from pathlib import Path
+        resolved_api_key = api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY") or ""
+        resolved_model = model or "gpt-4.1-mini"
+        resolved_base_url = base_url
 
-        simplemem_dir = str(Path(__file__).parent.parent / "SimpleMem")
-        if simplemem_dir not in sys.path:
-            sys.path.insert(0, simplemem_dir)
+        config_path = simplemem_dir / "config.py"
+        config_path.write_text(
+            f"OPENAI_API_KEY = {resolved_api_key!r}\n"
+            f"OPENAI_BASE_URL = {resolved_base_url!r}\n"
+            f"LLM_MODEL = {resolved_model!r}\n"
+            "EMBEDDING_MODEL = 'all-MiniLM-L6-v2'\n"
+            "EMBEDDING_DIMENSION = 384\n"
+            "EMBEDDING_CONTEXT_LENGTH = 512\n"
+            "ENABLE_THINKING = False\n"
+            "USE_STREAMING = False\n"
+            "USE_JSON_FORMAT = False\n"
+            "WINDOW_SIZE = 40\n"
+            "OVERLAP_SIZE = 2\n"
+            "SEMANTIC_TOP_K = 25\n"
+            "KEYWORD_TOP_K = 5\n"
+            "STRUCTURED_TOP_K = 5\n"
+            "LANCEDB_PATH = './lancedb_data'\n"
+            "MEMORY_TABLE_NAME = 'memory_entries'\n"
+            "ENABLE_PARALLEL_PROCESSING = True\n"
+            "MAX_PARALLEL_WORKERS = 16\n"
+            "ENABLE_PARALLEL_RETRIEVAL = True\n"
+            "MAX_RETRIEVAL_WORKERS = 8\n"
+            "ENABLE_PLANNING = True\n"
+            "ENABLE_REFLECTION = True\n"
+            "MAX_REFLECTION_ROUNDS = 2\n"
+        )
 
         from main import SimpleMemSystem  # type: ignore
 
@@ -411,29 +284,31 @@ class SimpleMemMemorySystem:
         )
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        """
-        Retrieve relevant memories using SimpleMem's hybrid retrieval.
-
-        Uses the three-layer retrieval (semantic, lexical, symbolic) and formats
-        the retrieved memory entries as a context string.
-        """
         contexts = self._system.hybrid_retriever.retrieve(prompt)
         if not contexts:
             return ""
+        if self.num_memories is not None:
+            contexts = contexts[: self.num_memories]
         return self._system.answer_generator._format_contexts(contexts)
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        """
-        Add the prompt and response as dialogues to SimpleMem's memory.
-
-        Each user/assistant exchange is stored as two dialogue entries, then
-        finalized so the memory is immediately available for retrieval.
-        """
-        import time
-
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%S")
         self._system.add_dialogue("User", prompt, timestamp)
         self._system.add_dialogue("Assistant", response, timestamp)
         self._system.finalize()
+
+    def get_all_memories(self) -> list[str]:
+        parts = []
+        for e in self._system.get_all_memories():
+            line = e.lossless_restatement
+            extras = []
+            if e.topic:
+                extras.append(f"topic: {e.topic}")
+            if e.timestamp:
+                extras.append(f"time: {e.timestamp}")
+            if extras:
+                line = f"{line} ({'; '.join(extras)})"
+            parts.append(line)
+        return parts

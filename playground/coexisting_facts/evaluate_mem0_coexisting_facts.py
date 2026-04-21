@@ -40,7 +40,14 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src import ChatSystem, ConversationHistoryPromptTemplate, Mem0MemorySystem, OpenAILLM
+from src import (  # noqa: E402
+    AMEMMemorySystem,
+    ChatSystem,
+    ConversationHistoryPromptTemplate,
+    Mem0MemorySystem,
+    OpenAILLM,
+    SimpleMemMemorySystem,
+)
 
 # Load .env from project root
 load_dotenv(PROJECT_ROOT / ".env")
@@ -86,7 +93,7 @@ class QuestionTrace:
     retrieved_memories: str
     preferences_retrieved_count: int    # how many preferences appeared in retrieved_memories
     preferences_retrieved_fraction: float
-    all_memories_at_time: List[Dict[str, Any]]
+    all_memories_at_time: List[str]
     judge_result: str           # "correct" or "incorrect"
     judge_reasoning: str
 
@@ -177,7 +184,7 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
 
 def store_individual_facts(
     all_facts: List[str],
-    memory_system: Mem0MemorySystem,
+    memory_system: Any,
     chat_system: ChatSystem,
     prompt_template: ConversationHistoryPromptTemplate,
 ) -> None:
@@ -201,7 +208,7 @@ def store_individual_facts(
 
 def ask_question(
     question: str,
-    memory_system: Mem0MemorySystem,
+    memory_system: Any,
     chat_system: ChatSystem,
     prompt_template: ConversationHistoryPromptTemplate,
 ) -> tuple[str, str, str, str]:
@@ -289,6 +296,23 @@ Grading rules:
     return "incorrect", f"Judge parse failed after retries: {last_error}"
 
 
+def _create_memory_system(memory: str, num_memories: int, shared_user_id: str, api_key: str) -> Any:
+    if memory == "mem0":
+        return Mem0MemorySystem(num_memories=num_memories, shared_user_id=shared_user_id)
+    if memory == "simplemem":
+        return SimpleMemMemorySystem(num_memories=num_memories, api_key=api_key, clear_db=True)
+    if memory == "amem":
+        return AMEMMemorySystem(
+            num_memories=num_memories,
+            llm_backend="openai",
+            llm_model="gpt-4o-mini",
+            embedding_model="all-MiniLM-L6-v2",
+            evo_threshold=100,
+            api_key=api_key,
+        )
+    raise ValueError(f"Unknown memory system: {memory!r}. Choose mem0, simplemem, or amem.")
+
+
 def run_evaluation(
     *,
     dataset_path: Path,
@@ -298,11 +322,12 @@ def run_evaluation(
     num_memories: int,
     shared_user_id: str,
     seed: int,
+    memory: str,
 ) -> EvaluationResults:
     dataset = load_dataset(dataset_path)
     results = EvaluationResults(total_questions=len(dataset))
 
-    memory_system = Mem0MemorySystem(num_memories=num_memories, shared_user_id=shared_user_id)
+    memory_system = _create_memory_system(memory, num_memories, shared_user_id, api_key)
     llm = OpenAILLM(api_key=api_key, model=llm_model)
     chat_system = ChatSystem(llm)
     prompt_template = ConversationHistoryPromptTemplate()
@@ -478,6 +503,13 @@ def main() -> None:
     parser.add_argument("--shared-user-id", type=str, default="coexisting_facts_eval_user")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--api-key", type=str, default=None)
+    parser.add_argument(
+        "--memory",
+        type=str,
+        default="mem0",
+        choices=["mem0", "simplemem", "amem"],
+        help="Memory system to evaluate.",
+    )
     args = parser.parse_args()
 
     api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
@@ -490,7 +522,7 @@ def main() -> None:
     if not dataset_path.exists():
         raise FileNotFoundError(f"Dataset not found: {dataset_path}")
 
-    output_dir = Path(args.output_dir)
+    output_dir = Path(args.output_dir) / args.memory
     if not output_dir.is_absolute():
         output_dir = PROJECT_ROOT / output_dir
 
@@ -502,6 +534,7 @@ def main() -> None:
         num_memories=args.num_memories,
         shared_user_id=args.shared_user_id,
         seed=args.seed,
+        memory=args.memory,
     )
     save_results(results, output_dir)
 
