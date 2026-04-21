@@ -10,8 +10,7 @@ from typing import Optional
 
 import mem0
 
-from .amem import AgenticMemorySystem, MemoryNote
-from .types import Conversation, LLMResponse, Prompt
+from .types import Conversation, ConversationID, LLMResponse, Prompt
 
 
 class NoHistoryMemorySystem:
@@ -26,6 +25,9 @@ class NoHistoryMemorySystem:
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
+        pass
+
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
         pass
 
 
@@ -55,6 +57,9 @@ class SimpleHistoryMemorySystem:
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
+        pass
+
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
         pass
 
 
@@ -93,7 +98,7 @@ class Mem0MemorySystem:
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
         user_id = self._user_id(conversation)
         results = self.memory.search(
-            query=prompt, top_k=self.num_memories, filters={"user_id": user_id}
+            query=prompt, user_id=user_id, limit=self.num_memories
         )
         return "\n".join(f"- {entry['memory']}" for entry in results["results"])
 
@@ -107,10 +112,13 @@ class Mem0MemorySystem:
         ]
         self.memory.add(messages, user_id=user_id)
 
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+        pass
+
     def get_all_memories(self, user_id: str | None = None) -> list[str]:
         if user_id is None:
             user_id = self.shared_user_id or "shared_user"
-        result = self.memory.get_all(filters={"user_id": user_id})
+        result = self.memory.get_all(user_id=user_id)
         return [entry["memory"] for entry in result.get("results", [])]
 
 
@@ -121,9 +129,9 @@ class AMEMMemorySystem:
 
     Implements Zettelkasten-style agentic memory with:
     - LLM-driven note indexing (keywords, context, tags)
-    - Semantic + BM25 hybrid retrieval via SimpleEmbeddingRetriever
+    - Semantic retrieval via ChromaDB
     - Automatic memory evolution and cross-linking
-    - Linked-neighbor recall following the test_advanced.py pattern
+    - Linked-neighbor recall via search_agentic
     """
 
     def __init__(
@@ -138,6 +146,12 @@ class AMEMMemorySystem:
         if api_key is None:
             api_key = os.getenv("OPENAI_KEY")
 
+        amem_dir = str(Path(__file__).parent.parent / "a-mem")
+        if amem_dir not in sys.path:
+            sys.path.insert(0, amem_dir)
+
+        from agentic_memory.memory_system import AgenticMemorySystem  # type: ignore
+
         self.num_memories = num_memories
         self._memory = AgenticMemorySystem(
             model_name=embedding_model,
@@ -147,58 +161,29 @@ class AMEMMemorySystem:
             api_key=api_key,
         )
 
-    def _format_note(self, note: MemoryNote, label: str) -> str:
-        lines = [f"{label}:"]
-        lines.append(f"  Content:  {note.content}")
-        if note.context:
-            lines.append(f"  Context:  {note.context}")
-        if note.tags:
-            tags = note.tags if isinstance(note.tags, list) else list(note.tags)
-            lines.append(f"  Tags:     {', '.join(str(t) for t in tags)}")
-        if note.keywords:
-            kws = note.keywords if isinstance(note.keywords, list) else list(note.keywords)
-            lines.append(f"  Keywords: {', '.join(str(k) for k in kws)}")
-        return "\n".join(lines)
-
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
-        if not self._memory.memories:
+        results = self._memory.search_agentic(prompt, k=self.num_memories)
+        if not results:
             return ""
-
-        indices = self._memory.retriever.search(prompt, k=self.num_memories)
-        all_notes = list(self._memory.memories.values())
-
-        seen: set[int] = set()
-        memory_parts: list[str] = []
-        mem_num = 1
-
-        for idx in indices:
-            if idx >= len(all_notes) or idx in seen:
-                continue
-            seen.add(idx)
-            note = all_notes[idx]
-            memory_parts.append(self._format_note(note, f"Memory {mem_num}"))
-            mem_num += 1
-
-            for j, neighbor_idx in enumerate(note.links):
-                if j >= self.num_memories:
-                    break
-                if (
-                    isinstance(neighbor_idx, int)
-                    and neighbor_idx < len(all_notes)
-                    and neighbor_idx not in seen
-                ):
-                    seen.add(neighbor_idx)
-                    nb = all_notes[neighbor_idx]
-                    memory_parts.append(self._format_note(nb, f"Memory {mem_num} (linked)"))
-                    mem_num += 1
-
-        return "\n\n".join(memory_parts)
+        parts = []
+        for m in results:
+            label = "Memory (linked)" if m.get("is_neighbor") else "Memory"
+            line = f"{label}: {m['content']}"
+            if m.get("context"):
+                line += f" | context: {m['context']}"
+            if m.get("tags"):
+                line += f" | tags: {', '.join(m['tags'])}"
+            parts.append(line)
+        return "\n".join(parts)
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         note_content = f"User: {prompt}\nAssistant: {response}"
         self._memory.add_note(note_content)
+
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+        pass
 
     def get_all_memories(self) -> list[str]:
         parts = []
@@ -233,7 +218,25 @@ class SimpleMemMemorySystem:
         base_url: Optional[str] = None,
         db_path: Optional[str] = None,
         clear_db: bool = True,
-        **kwargs,
+        embedding_model: Optional[str] = None,
+        embedding_dimension: Optional[int] = None,
+        embedding_context_length: Optional[int] = None,
+        enable_thinking: Optional[bool] = None,
+        use_streaming: Optional[bool] = None,
+        use_json_format: Optional[bool] = None,
+        window_size: Optional[int] = None,
+        overlap_size: Optional[int] = None,
+        semantic_top_k: Optional[int] = None,
+        keyword_top_k: Optional[int] = None,
+        structured_top_k: Optional[int] = None,
+        memory_table_name: Optional[str] = None,
+        enable_parallel_processing: Optional[bool] = None,
+        max_parallel_workers: Optional[int] = None,
+        enable_parallel_retrieval: Optional[bool] = None,
+        max_retrieval_workers: Optional[int] = None,
+        enable_planning: Optional[bool] = None,
+        enable_reflection: Optional[bool] = None,
+        max_reflection_rounds: Optional[int] = None,
     ):
         self.num_memories = num_memories
         simplemem_dir = Path(__file__).parent.parent / "SimpleMem"
@@ -243,33 +246,37 @@ class SimpleMemMemorySystem:
 
         resolved_api_key = api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY") or ""
         resolved_model = model or "gpt-4.1-mini"
-        resolved_base_url = base_url
+
+        # top-k: fall back to num_memories, then to SimpleMem defaults
+        resolved_semantic_top_k = semantic_top_k if semantic_top_k is not None else (num_memories if num_memories is not None else 25)
+        resolved_keyword_top_k = keyword_top_k if keyword_top_k is not None else (num_memories if num_memories is not None else 5)
+        resolved_structured_top_k = structured_top_k if structured_top_k is not None else (num_memories if num_memories is not None else 5)
 
         config_path = simplemem_dir / "config.py"
         config_path.write_text(
             f"OPENAI_API_KEY = {resolved_api_key!r}\n"
-            f"OPENAI_BASE_URL = {resolved_base_url!r}\n"
+            f"OPENAI_BASE_URL = {base_url!r}\n"
             f"LLM_MODEL = {resolved_model!r}\n"
-            "EMBEDDING_MODEL = 'all-MiniLM-L6-v2'\n"
-            "EMBEDDING_DIMENSION = 384\n"
-            "EMBEDDING_CONTEXT_LENGTH = 512\n"
-            "ENABLE_THINKING = False\n"
-            "USE_STREAMING = False\n"
-            "USE_JSON_FORMAT = False\n"
-            "WINDOW_SIZE = 40\n"
-            "OVERLAP_SIZE = 2\n"
-            "SEMANTIC_TOP_K = 25\n"
-            "KEYWORD_TOP_K = 5\n"
-            "STRUCTURED_TOP_K = 5\n"
-            "LANCEDB_PATH = './lancedb_data'\n"
-            "MEMORY_TABLE_NAME = 'memory_entries'\n"
-            "ENABLE_PARALLEL_PROCESSING = True\n"
-            "MAX_PARALLEL_WORKERS = 16\n"
-            "ENABLE_PARALLEL_RETRIEVAL = True\n"
-            "MAX_RETRIEVAL_WORKERS = 8\n"
-            "ENABLE_PLANNING = True\n"
-            "ENABLE_REFLECTION = True\n"
-            "MAX_REFLECTION_ROUNDS = 2\n"
+            f"EMBEDDING_MODEL = {(embedding_model or 'all-MiniLM-L6-v2')!r}\n"
+            f"EMBEDDING_DIMENSION = {embedding_dimension or 384}\n"
+            f"EMBEDDING_CONTEXT_LENGTH = {embedding_context_length or 512}\n"
+            f"ENABLE_THINKING = {enable_thinking if enable_thinking is not None else False}\n"
+            f"USE_STREAMING = {use_streaming if use_streaming is not None else False}\n"
+            f"USE_JSON_FORMAT = {use_json_format if use_json_format is not None else False}\n"
+            f"WINDOW_SIZE = {window_size or 20}\n"
+            f"OVERLAP_SIZE = {overlap_size or 2}\n"
+            f"SEMANTIC_TOP_K = {resolved_semantic_top_k}\n"
+            f"KEYWORD_TOP_K = {resolved_keyword_top_k}\n"
+            f"STRUCTURED_TOP_K = {resolved_structured_top_k}\n"
+            f"LANCEDB_PATH = {(db_path or './lancedb_data')!r}\n"
+            f"MEMORY_TABLE_NAME = {(memory_table_name or 'memory_entries')!r}\n"
+            f"ENABLE_PARALLEL_PROCESSING = {enable_parallel_processing if enable_parallel_processing is not None else True}\n"
+            f"MAX_PARALLEL_WORKERS = {max_parallel_workers or 16}\n"
+            f"ENABLE_PARALLEL_RETRIEVAL = {enable_parallel_retrieval if enable_parallel_retrieval is not None else True}\n"
+            f"MAX_RETRIEVAL_WORKERS = {max_retrieval_workers or 8}\n"
+            f"ENABLE_PLANNING = {enable_planning if enable_planning is not None else True}\n"
+            f"ENABLE_REFLECTION = {enable_reflection if enable_reflection is not None else True}\n"
+            f"MAX_REFLECTION_ROUNDS = {max_reflection_rounds or 2}\n"
         )
 
         from main import SimpleMemSystem  # type: ignore
@@ -279,8 +286,17 @@ class SimpleMemMemorySystem:
             model=model,
             base_url=base_url,
             db_path=db_path,
+            table_name=memory_table_name,
             clear_db=clear_db,
-            **kwargs,
+            enable_thinking=enable_thinking,
+            use_streaming=use_streaming,
+            enable_planning=enable_planning,
+            enable_reflection=enable_reflection,
+            max_reflection_rounds=max_reflection_rounds,
+            enable_parallel_processing=enable_parallel_processing,
+            max_parallel_workers=max_parallel_workers,
+            enable_parallel_retrieval=enable_parallel_retrieval,
+            max_retrieval_workers=max_retrieval_workers,
         )
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
@@ -289,7 +305,7 @@ class SimpleMemMemorySystem:
             return ""
         if self.num_memories is not None:
             contexts = contexts[: self.num_memories]
-        return self._system.answer_generator._format_contexts(contexts)
+        return "\n".join(f"- {entry.lossless_restatement}" for entry in contexts)
 
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
@@ -297,6 +313,8 @@ class SimpleMemMemorySystem:
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%S")
         self._system.add_dialogue("User", prompt, timestamp)
         self._system.add_dialogue("Assistant", response, timestamp)
+
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
         self._system.finalize()
 
     def get_all_memories(self) -> list[str]:

@@ -15,6 +15,14 @@ PromptContext = str
 
 
 @dataclass(frozen=True)
+class LLMUsage:
+    """Token usage reported by the LLM API."""
+
+    prompt_tokens: int
+    completion_tokens: int
+
+
+@dataclass(frozen=True)
 class Message:
     """Represents a message in a conversation."""
 
@@ -94,6 +102,18 @@ class MemorySystem(Protocol):
             prompt: The prompt that was sent
             response: The response received
             conversation: The conversation history
+        """
+        ...
+
+    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+        """
+        Finalize and consolidate memory at the end of a conversation.
+
+        Called once after all turns in a conversation are complete.
+        Most memory systems can implement this as a no-op.
+
+        Args:
+            conversation_id: The ID of the conversation that ended
         """
         ...
 
