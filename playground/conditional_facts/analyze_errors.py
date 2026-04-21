@@ -1,18 +1,23 @@
 """
-analyze_errors.py -- Grade and classify errors in conditional-facts traces in one LLM call.
+analyze_errors.py -- Grade and classify errors in conditional-facts traces.
 
-For each trace from evaluate_conditional_facts.py, a single judge LLM call:
-  1. Grades whether the model responded correctly (correct / incorrect)
-  2. Checks whether the entity's conditional fact appeared in retrieved memories
-  3. If incorrect, classifies the root cause:
-       storage_error   -- conditional fact absent from ALL_MEMORIES
-       retrieval_error -- conditional fact in ALL_MEMORIES but not in RETRIEVED_MEMORIES
-       reasoning_error -- conditional fact in RETRIEVED_MEMORIES but model still failed
+Reads the output of evaluate_conditional_facts.py and grades each graded question
+in a single LLM call per trace. The judge receives:
+  - ALL_MEMORIES: full memory store at the time of the question
+  - RETRIEVED_MEMORIES: the specific memories actually shown to the LLM
+  - Dataset metadata: entity, condition, ground truth, etc.
+
+This lets the judge determine whether a wrong answer was due to:
+  storage_error   -- conditional fact absent from ALL_MEMORIES entirely
+  retrieval_error -- conditional fact in ALL_MEMORIES but not RETRIEVED_MEMORIES
+  reasoning_error -- conditional fact in RETRIEVED_MEMORIES but model still failed
 
 Usage:
   uv run python playground/conditional_facts/analyze_errors.py --traces path/to/traces.json
   uv run python playground/conditional_facts/analyze_errors.py  # auto-detects most recent
   uv run python playground/conditional_facts/analyze_errors.py --limit 5
+
+Cost/token metrics for the judge are printed in the final summary.
 """
 
 import argparse
@@ -24,7 +29,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -32,18 +37,22 @@ from tqdm import tqdm
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.llm import compute_cost  # noqa: E402
+
 load_dotenv(PROJECT_ROOT / ".env")
 
 if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
     os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
-DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_MODEL = "gpt-4.1-mini"
 DEFAULT_WORKERS = 8
 MAX_RETRIES = 3
 
 # ---------------------------------------------------------------------------
-# Combined prompt
+# Judge prompts
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT = """\
@@ -156,10 +165,10 @@ SCHEMA = {
 # ---------------------------------------------------------------------------
 
 
-def format_all_memories(all_memories_at_time: list) -> str:
-    if not all_memories_at_time:
+def format_all_memories(all_memories: list) -> str:
+    if not all_memories:
         return "(no memories in store)"
-    entries = [m if isinstance(m, str) else m.get("memory", str(m)) for m in all_memories_at_time]
+    entries = [m if isinstance(m, str) else m.get("memory", str(m)) for m in all_memories]
     return "\n".join(f"- {m}" for m in entries)
 
 
@@ -174,14 +183,69 @@ def auto_detect_traces_file(results_dir: Path) -> Path:
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def extract_graded_traces(data: dict) -> Tuple[List[dict], List[dict]]:
+    """Extract graded (question) traces and their matching dataset rows from evaluation output.
+
+    Returns (graded_traces, dataset_rows) aligned by index.
+    Each graded_trace is a flat dict combining QueryTrace fields with the dataset row metadata.
+    """
+    num_storage_convs = data["run_metadata"]["num_storage_convs"]
+    dataset_rows = data["dataset_rows"]
+    results = data["evaluation_summary"]["results"]
+
+    question_results = results[num_storage_convs:]
+
+    graded = []
+    for i, (result, row) in enumerate(zip(question_results, dataset_rows)):
+        # Each question conversation has exactly one trace (grade=True)
+        traces = result["traces"]
+        if not traces:
+            continue
+        trace = traces[0]  # single graded query per question conversation
+
+        graded.append({
+            # From dataset row
+            "entity": row["entity"],
+            "entity_category": row["entity_category"],
+            "behavior": row["behavior"],
+            "condition_type": row["condition_type"],
+            "condition": row["condition"],
+            "entity_facts": row["entity_facts"],
+            "question_context": row["question_context"],
+            "condition_met": row["condition_met"],
+            "ground_truth_answer": row["ground_truth_answer"],
+            # From QueryTrace
+            "question": trace["query"],
+            "retrieved_memories": trace["retrieved_memories"],
+            "llm_response": trace["response"],
+            "formatted_prompt": trace["formatted_prompt"],
+            "conversation_id": result["conversation_id"],
+            # Input tokens / output tokens / cost for the LLM response turn
+            "eval_input_tokens": trace["input_tokens"],
+            "eval_output_tokens": trace["output_tokens"],
+            "eval_cost": trace["cost"],
+        })
+
+    return graded, dataset_rows
+
+
 # ---------------------------------------------------------------------------
-# Combined grade + classify
+# Judge call
 # ---------------------------------------------------------------------------
 
 
-def analyze_trace(client: OpenAI, model: str, trace: dict) -> dict:
-    """Grade and classify a single trace in one LLM call. Never raises."""
-    result = {k: v for k, v in trace.items() if k != "all_memories_at_time"}
+def analyze_trace(
+    client: OpenAI,
+    model: str,
+    trace: dict,
+    all_memories: list,
+) -> Tuple[dict, int, int]:
+    """Grade and classify a single graded trace in one LLM call.
+
+    Returns (result_dict, input_tokens, output_tokens). Never raises.
+    input_tokens / output_tokens are from the judge API call (0 on failure).
+    """
+    result = {k: v for k, v in trace.items()}
     result["judge_result"] = None
     result["judge_reasoning"] = None
     result["entity_facts_in_retrieved"] = None
@@ -190,8 +254,11 @@ def analyze_trace(client: OpenAI, model: str, trace: dict) -> dict:
     result["analysis_reasoning"] = None
     result["analysis_error"] = None
 
+    input_tokens = 0
+    output_tokens = 0
+
     try:
-        all_memories_formatted = format_all_memories(trace.get("all_memories_at_time", []))
+        all_memories_formatted = format_all_memories(all_memories)
         retrieved = trace.get("retrieved_memories") or "(none)"
 
         user_content = USER_TEMPLATE.format(
@@ -223,7 +290,10 @@ def analyze_trace(client: OpenAI, model: str, trace: dict) -> dict:
                 result["error_type"] = data.get("error_type")
                 result["missing_element"] = data.get("missing_element")
                 result["analysis_reasoning"] = data.get("analysis_reasoning")
-                return result
+                if resp.usage:
+                    input_tokens = resp.usage.prompt_tokens
+                    output_tokens = resp.usage.completion_tokens
+                return result, input_tokens, output_tokens
             except Exception as e:
                 last_error = e
                 if attempt < MAX_RETRIES:
@@ -234,7 +304,7 @@ def analyze_trace(client: OpenAI, model: str, trace: dict) -> dict:
     except Exception as exc:
         result["analysis_error"] = str(exc)
 
-    return result
+    return result, input_tokens, output_tokens
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +312,8 @@ def analyze_trace(client: OpenAI, model: str, trace: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def print_summary(results: list) -> None:
+def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: int,
+                  judge_cost: float, judge_model: str) -> None:
     total = len(results)
     correct = sum(1 for r in results if r.get("judge_result") == "correct")
     incorrect = total - correct
@@ -250,14 +321,14 @@ def print_summary(results: list) -> None:
     print("\n" + "=" * 60)
     print("ANALYSIS SUMMARY")
     print("=" * 60)
-    print(f"Total traces:   {total}")
-    print(f"Correct:        {correct}  ({correct/total:.1%})" if total else "Correct: 0")
-    print(f"Incorrect:      {incorrect}  ({incorrect/total:.1%})" if total else "Incorrect: 0")
+    print(f"Total traces:       {total}")
+    print(f"Correct:            {correct}  ({correct/total:.1%})" if total else "Correct: 0")
+    print(f"Incorrect:          {incorrect}  ({incorrect/total:.1%})" if total else "Incorrect: 0")
 
     retrieval_hits = sum(1 for r in results if r.get("entity_facts_in_retrieved"))
     print(f"Retrieval hit rate: {retrieval_hits/total:.1%}" if total else "Retrieval hit rate: N/A")
 
-    # Error type breakdown (incorrect only)
+    # Error type breakdown
     error_types = ["storage_error", "retrieval_error", "reasoning_error"]
     counts: Dict[str, int] = {et: 0 for et in error_types}
     counts["analysis_failed"] = 0
@@ -278,6 +349,10 @@ def print_summary(results: list) -> None:
         print("-" * 52)
         print(f"{'TOTAL INCORRECT':<26} {incorrect:>6}")
 
+    print(f"\n{'Judge model:':<26} {judge_model}")
+    print(f"{'Judge input tokens:':<26} {judge_input_tokens:,}")
+    print(f"{'Judge output tokens:':<26} {judge_output_tokens:,}")
+    print(f"{'Judge cost:':<26} ${judge_cost:.4f}")
     print("=" * 60)
 
 
@@ -289,10 +364,11 @@ def save_outputs(results: list, output_dir: Path, ts: str):
         json.dump(results, f, indent=2)
 
     fieldnames = [
-        "question_conv_id", "judge_result", "entity_facts_in_retrieved",
+        "conversation_id", "judge_result", "entity_facts_in_retrieved",
         "error_type", "condition_met", "condition_type", "entity", "condition",
         "ground_truth_answer", "missing_element", "question",
         "judge_reasoning", "analysis_reasoning",
+        "eval_input_tokens", "eval_output_tokens", "eval_cost",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
@@ -315,21 +391,25 @@ def main() -> None:
     parser.add_argument(
         "--traces",
         default=None,
-        help="Path to traces JSON (full, not compact). Auto-detects most recent if omitted.",
+        help="Path to traces JSON from evaluate_conditional_facts.py. Auto-detects most recent if omitted.",
     )
     parser.add_argument(
         "--output-dir",
         default=None,
         help="Output directory. Defaults to same directory as the traces file.",
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="LLM model for grading and classification.")
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help="LLM model for grading and classification.",
+    )
     parser.add_argument("--api-key", default=None)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Only analyze first N traces (for testing).",
+        help="Only analyze first N graded traces (for testing).",
     )
     args = parser.parse_args()
 
@@ -346,13 +426,16 @@ def main() -> None:
     print(f"Loading traces from: {traces_path}")
 
     with open(traces_path, encoding="utf-8") as f:
-        all_traces = json.load(f)
+        data = json.load(f)
 
-    print(f"Total traces: {len(all_traces)}")
+    all_memories = data["all_memories_at_time_of_questions"]
+    graded_traces, _ = extract_graded_traces(data)
 
-    traces_to_analyze = all_traces
+    print(f"Total graded traces: {len(graded_traces)}")
+    print(f"All memories in store: {len(all_memories)}")
+
     if args.limit:
-        traces_to_analyze = traces_to_analyze[: args.limit]
+        graded_traces = graded_traces[: args.limit]
         print(f"Limiting to first {args.limit} traces.")
 
     output_dir = Path(args.output_dir) if args.output_dir else traces_path.parent
@@ -360,19 +443,33 @@ def main() -> None:
 
     client = OpenAI(api_key=api_key)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results: List[Optional[dict]] = [None] * len(traces_to_analyze)
+
+    results: List[Optional[dict]] = [None] * len(graded_traces)
+    judge_input_tokens = 0
+    judge_output_tokens = 0
+
+    # Thread-safe accumulation via a list of (index, input_tokens, output_tokens)
+    token_accumulator: List[Tuple[int, int, int]] = []
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(analyze_trace, client, args.model, trace): i
-            for i, trace in enumerate(traces_to_analyze)
+            pool.submit(analyze_trace, client, args.model, trace, all_memories): i
+            for i, trace in enumerate(graded_traces)
         }
         for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing traces"):
             i = futures[future]
-            results[i] = future.result()
+            result, in_tok, out_tok = future.result()
+            results[i] = result
+            token_accumulator.append((i, in_tok, out_tok))
+
+    for _, in_tok, out_tok in token_accumulator:
+        judge_input_tokens += in_tok
+        judge_output_tokens += out_tok
+
+    judge_cost = compute_cost(args.model, judge_input_tokens, judge_output_tokens)
 
     json_path, csv_path = save_outputs(results, output_dir, ts)
-    print_summary(results)
+    print_summary(results, judge_input_tokens, judge_output_tokens, judge_cost, args.model)
     print(f"\nResults saved:")
     print(f"  JSON: {json_path}")
     print(f"  CSV:  {csv_path}")

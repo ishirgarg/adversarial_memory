@@ -46,6 +46,8 @@ class QueryTrace:
     # Timing breakdown for this turn (seconds)
     retrieval_time: float
     llm_time: float
+    # Snapshot of all memories stored in the system after this turn's update
+    all_memories: list
 
 
 @dataclass
@@ -224,6 +226,9 @@ class Evaluator:
             # ── Memory update ─────────────────────────────────────────────────
             self.memory_system.update_memory(query, response, conversation)
 
+            # ── Snapshot all stored memories after the update ─────────────────
+            all_memories = self.memory_system.get_all_memories()
+
             # ── Record full trace for this turn ───────────────────────────────
             traces.append(
                 QueryTrace(
@@ -239,6 +244,7 @@ class Evaluator:
                     cost=cost,
                     retrieval_time=retrieval_time,
                     llm_time=llm_time,
+                    all_memories=all_memories,
                 )
             )
 

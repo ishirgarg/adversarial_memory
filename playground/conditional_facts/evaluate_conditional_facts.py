@@ -1,31 +1,36 @@
 """
 Evaluate memory systems on the conditional-facts dataset.
 
-Tests whether the memory system correctly preserves CONDITIONAL or QUALIFIED information —
-i.e., that an entity does something only under a specific condition.
+Constructs a ChatDataset (storage conversations followed by question conversations)
+and runs it through the Evaluator framework. All trace data is saved to the results
+folder. Run analyze_errors.py to grade and classify errors.
 
-Storage model:
-  Entity facts are fed into memory in GROUPS (default 10 per conversation). Each group is
-  a single chat turn: all facts in the group are concatenated and sent as one message.
-  This tests whether the memory system can summarize conditional/qualified information
-  without losing the qualifying condition.
+Dataset structure:
+  - Storage conversations: groups of `facts_per_group` facts, each group in its own
+    conversation (grade=False). Memory is built up during this phase.
+  - Question conversations: one per dataset row, each containing a single graded
+    query (grade=True). No grading happens here — just response generation.
 
-Grading is NOT done here. Run analyze_errors.py on the saved traces file to grade
-responses and classify errors in a single combined LLM call per trace.
+Output:
+  traces_<timestamp>.json with:
+    - run_metadata: configuration for this run
+    - all_memories_at_time_of_questions: full memory store captured after evaluation
+    - dataset_rows: original CSV metadata aligned with question conversations
+    - evaluation_summary: all EvaluationResult/QueryTrace data from the Evaluator
 """
 
 import argparse
+import csv
 import json
 import os
-import random
 import sys
-from dataclasses import asdict, dataclass
+import uuid
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from dotenv import load_dotenv
-from tqdm import tqdm
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
@@ -33,11 +38,14 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from src import (  # noqa: E402
     AMEMMemorySystem,
-    ChatSystem,
+    ChatDataset,
+    ConversationData,
     ConversationHistoryPromptTemplate,
+    Evaluator,
     Mem0MemorySystem,
     OpenAILLM,
     SimpleMemMemorySystem,
+    TiktokenTokenizer,
 )
 
 load_dotenv(PROJECT_ROOT / ".env")
@@ -45,63 +53,31 @@ load_dotenv(PROJECT_ROOT / ".env")
 if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
     os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
 
-QUESTION_TYPE = "conditional_facts_question"
 DEFAULT_FACTS_PER_GROUP = 10
 
-
-@dataclass
-class QuestionTrace:
-    entity: str
-    entity_category: str
-    behavior: str
-    condition_type: str
-    condition: str
-    entity_facts: List[str]
-    question: str
-    question_context: str
-    condition_met: str                    # "yes" or "no"
-    ground_truth_answer: str
-    question_type: str
-    question_conv_id: str
-    formatted_prompt: str
-    llm_response: str
-    retrieved_memories: str
-    all_memories_at_time: List[str]
+COMPLIANCE_INSTRUCTION = (
+    "\n\nAnswer the question directly with yes or no. Then add a line starting with "
+    "'MEMORY_USED:' and either:\n"
+    "- List an exact quote of every specific memory you used, or\n"
+    "- State 'none' if you did not use any memory."
+)
 
 
-@dataclass
-class EvaluationResults:
-    total_questions: int = 0
-    traces: List[QuestionTrace] = None
-
-    def __post_init__(self) -> None:
-        if self.traces is None:
-            self.traces = []
-
-    def summary(self) -> Dict[str, Any]:
-        # Breakdown by condition_met
-        by_condition: Dict[str, int] = {}
-        for t in self.traces:
-            by_condition[t.condition_met] = by_condition.get(t.condition_met, 0) + 1
-
-        # Breakdown by condition type
-        by_ctype: Dict[str, int] = {}
-        for t in self.traces:
-            by_ctype[t.condition_type] = by_ctype.get(t.condition_type, 0) + 1
-
-        return {
-            "total_questions": self.total_questions,
-            "by_condition_met": {k: by_condition[k] for k in sorted(by_condition)},
-            "by_condition_type": {k: by_ctype[k] for k in sorted(by_ctype)},
-        }
+class _UUIDEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        return super().default(obj)
 
 
 def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        required = ["entity_facts", "question", "ground_truth_answer", "condition_met",
-                    "entity", "condition", "condition_type"]
+        required = [
+            "entity_facts", "question", "ground_truth_answer",
+            "condition_met", "entity", "condition", "condition_type",
+        ]
         if not reader.fieldnames:
             raise ValueError("Dataset CSV missing header.")
         missing = [c for c in required if c not in reader.fieldnames]
@@ -117,79 +93,55 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
             except json.JSONDecodeError as e:
                 raise ValueError(f"Row {i}: entity_facts is not valid JSON: {e}") from e
             if len(facts_list) != 1:
-                raise ValueError(f"Row {i}: entity_facts must have exactly 1 element, got {len(facts_list)}. Regenerate the dataset.")
+                raise ValueError(
+                    f"Row {i}: entity_facts must have exactly 1 element, "
+                    f"got {len(facts_list)}. Regenerate the dataset."
+                )
             rows.append({
                 "entity": row.get("entity", ""),
                 "entity_category": row.get("entity_category", ""),
                 "behavior": row.get("behavior", ""),
                 "condition_type": row.get("condition_type", ""),
                 "condition": row.get("condition", ""),
-                "entity_facts": facts_list,   # list with exactly 1 conditional fact
+                "entity_facts": facts_list,
                 "question": row["question"],
                 "question_context": row.get("question_context", ""),
                 "condition_met": row.get("condition_met", "").strip().lower(),
                 "ground_truth_answer": row.get("ground_truth_answer", ""),
-                "question_type": QUESTION_TYPE,
             })
     return rows
 
 
-def store_facts_in_groups(
-    all_facts: List[str],
-    facts_per_group: int,
-    memory_system: Any,
-    chat_system: ChatSystem,
-    prompt_template: ConversationHistoryPromptTemplate,
-) -> None:
-    """Store facts in groups of `facts_per_group` per conversation.
+def build_chat_dataset(
+    dataset_rows: List[Dict[str, Any]], facts_per_group: int
+) -> Tuple[ChatDataset, int]:
+    """Build a ChatDataset for evaluation.
 
-    Each group is concatenated into a single message sent in a fresh chat.
-    This tests whether memory systems can summarize batches that contain
-    conditional/qualified information.
+    Storage conversations (grade=False) come first so memory is populated before
+    questions are asked. Question conversations (grade=True) follow, one per row.
+
+    Returns (dataset, num_storage_convs).
     """
+    conversations = []
+
+    # Phase 1: Storage conversations — group facts, each group in its own conversation
+    all_facts = [row["entity_facts"][0] for row in dataset_rows]
     groups = [all_facts[i:i + facts_per_group] for i in range(0, len(all_facts), facts_per_group)]
     for group in groups:
-        combined = "\n".join(group)
-        conv_id = chat_system.start_new_conversation()
-        conversation = chat_system.get_conversation(conv_id)
-        if conversation is None:
-            raise ValueError("Failed to get conversation for fact storage.")
-        memories = memory_system.get_memories(combined, conversation)
-        prompt = prompt_template.format(combined, memories, conversation)
-        response = chat_system.send_message(prompt, conv_id)
-        updated = chat_system.get_conversation(conv_id)
-        if updated:
-            memory_system.update_memory(combined, response, updated)
+        conversations.append(ConversationData(queries=[(fact, False) for fact in group]))
+    num_storage_convs = len(groups)
+
+    # Phase 2: Question conversations — one graded query per row
+    for row in dataset_rows:
+        question = row["question"] + COMPLIANCE_INSTRUCTION
+        conversations.append(ConversationData(queries=[(question, True)]))
+
+    return ChatDataset(conversations), num_storage_convs
 
 
-def ask_question(
-    question: str,
-    memory_system: Any,
-    chat_system: ChatSystem,
-    prompt_template: ConversationHistoryPromptTemplate,
-) -> tuple[str, str, str, str]:
-    """Ask a question in a fresh conversation. Returns (formatted_prompt, response, memories, conv_id)."""
-    conv_id = chat_system.start_new_conversation()
-    conversation = chat_system.get_conversation(conv_id)
-    if conversation is None:
-        raise ValueError("Failed to get conversation for question.")
-
-    retrieved_memories = memory_system.get_memories(question, conversation)
-    compliance_instruction = (
-        "\n\nAnswer the question directly with yes or no. Then add a line starting with "
-        "'MEMORY_USED:' and either:\n"
-        "- List an exact quote of every specific memory you used, or\n"
-        "- State 'none' if you did not use any memory."
-    )
-    model_question = question + compliance_instruction
-    formatted_prompt = prompt_template.format(model_question, retrieved_memories, conversation)
-    llm_response = chat_system.send_message(formatted_prompt, conv_id)
-
-    return formatted_prompt, llm_response, retrieved_memories, str(conv_id)
-
-
-
-def _create_memory_system(memory: str, num_memories: int, shared_user_id: str, api_key: str) -> Any:
+def _create_memory_system(
+    memory: str, num_memories: int, shared_user_id: str, api_key: str
+) -> Any:
     if memory == "mem0":
         return Mem0MemorySystem(num_memories=num_memories, shared_user_id=shared_user_id)
     if memory == "simplemem":
@@ -204,100 +156,6 @@ def _create_memory_system(memory: str, num_memories: int, shared_user_id: str, a
             api_key=api_key,
         )
     raise ValueError(f"Unknown memory system: {memory!r}. Choose mem0, simplemem, or amem.")
-
-
-def run_evaluation(
-    *,
-    dataset_path: Path,
-    api_key: str,
-    llm_model: str,
-    num_memories: int,
-    facts_per_group: int,
-    shared_user_id: str,
-    seed: int,
-    memory: str,
-) -> EvaluationResults:
-    dataset = load_dataset(dataset_path)
-    results = EvaluationResults(total_questions=len(dataset))
-
-    memory_system = _create_memory_system(memory, num_memories, shared_user_id, api_key)
-    llm = OpenAILLM(api_key=api_key, model=llm_model)
-    chat_system = ChatSystem(llm)
-    prompt_template = ConversationHistoryPromptTemplate()
-
-    # --- Phase 1: storage ---
-    # Each row has exactly one conditional fact. Collect them all in dataset order,
-    # then store in groups of `facts_per_group`, each group in its own conversation.
-    all_facts: List[str] = [row["entity_facts"][0] for row in dataset]
-    num_groups = (len(all_facts) + facts_per_group - 1) // facts_per_group
-    print(
-        f"Storing {len(all_facts)} facts into memory "
-        f"in groups of {facts_per_group} ({num_groups} conversations)..."
-    )
-    store_facts_in_groups(all_facts, facts_per_group, memory_system, chat_system, prompt_template)
-    print("Storage complete.")
-
-    # --- Phase 2: evaluation ---
-    # Each question is asked in its own fresh conversation.
-    question_rows = list(dataset)
-    random.Random(seed).shuffle(question_rows)
-
-    for row in tqdm(question_rows, desc="Evaluating"):
-        formatted_prompt, llm_response, retrieved_memories, question_conv_id = ask_question(
-            row["question"], memory_system, chat_system, prompt_template
-        )
-        all_memories_at_time = memory_system.get_all_memories()
-
-        trace = QuestionTrace(
-            entity=row["entity"],
-            entity_category=row["entity_category"],
-            behavior=row["behavior"],
-            condition_type=row["condition_type"],
-            condition=row["condition"],
-            entity_facts=row["entity_facts"],
-            question=row["question"],
-            question_context=row["question_context"],
-            condition_met=row["condition_met"],
-            ground_truth_answer=row["ground_truth_answer"],
-            question_type=row["question_type"],
-            question_conv_id=question_conv_id,
-            formatted_prompt=formatted_prompt,
-            llm_response=llm_response,
-            retrieved_memories=retrieved_memories,
-            all_memories_at_time=all_memories_at_time,
-        )
-        results.traces.append(trace)
-
-    return results
-
-
-def save_results(results: EvaluationResults, output_dir: Path) -> None:
-    output_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    traces_path = output_dir / f"traces_{ts}.json"
-    traces_compact_path = output_dir / f"traces_compact_{ts}.json"
-
-    with open(traces_path, "w", encoding="utf-8") as f:
-        json.dump([asdict(t) for t in results.traces], f, indent=2)
-
-    compact_traces = []
-    for t in results.traces:
-        t_dict = asdict(t)
-        t_dict.pop("all_memories_at_time", None)
-        t_dict.pop("formatted_prompt", None)
-        compact_traces.append(t_dict)
-    with open(traces_compact_path, "w", encoding="utf-8") as f:
-        json.dump(compact_traces, f, indent=2)
-
-    print("=" * 80)
-    print("CONDITIONAL FACTS EVALUATION COMPLETE")
-    print("=" * 80)
-    print(f"Total questions: {results.total_questions}")
-    print(f"Saved traces:           {traces_path}")
-    print(f"Saved compact traces:   {traces_compact_path}")
-    print("Run analyze_errors.py on the traces file to grade and classify errors.")
-    print("=" * 80)
 
 
 def main() -> None:
@@ -317,10 +175,10 @@ def main() -> None:
         "--facts-per-group",
         type=int,
         default=DEFAULT_FACTS_PER_GROUP,
-        help="Number of facts to store per conversation (default: 10).",
+        help="Number of facts per storage conversation (default: 10).",
     )
     parser.add_argument("--shared-user-id", type=str, default="conditional_facts_eval_user")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=42, help="(unused) Retained for script compatibility.")
     parser.add_argument("--api-key", type=str, default=None)
     parser.add_argument(
         "--memory",
@@ -344,18 +202,68 @@ def main() -> None:
     output_dir = Path(args.output_dir) / args.memory
     if not output_dir.is_absolute():
         output_dir = PROJECT_ROOT / output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    results = run_evaluation(
-        dataset_path=dataset_path,
-        api_key=api_key,
-        llm_model=args.llm_model,
-        num_memories=args.num_memories,
-        facts_per_group=args.facts_per_group,
-        shared_user_id=args.shared_user_id,
-        seed=args.seed,
-        memory=args.memory,
+    print(f"Loading dataset from {dataset_path}...")
+    dataset_rows = load_dataset(dataset_path)
+    print(f"Loaded {len(dataset_rows)} rows.")
+
+    chat_dataset, num_storage_convs = build_chat_dataset(dataset_rows, args.facts_per_group)
+    num_question_convs = len(dataset_rows)
+    print(
+        f"Built ChatDataset: {num_storage_convs} storage conversations "
+        f"({args.facts_per_group} facts each), {num_question_convs} question conversations."
     )
-    save_results(results, output_dir)
+
+    memory_system = _create_memory_system(
+        args.memory, args.num_memories, args.shared_user_id, api_key
+    )
+    llm = OpenAILLM(api_key=api_key, model=args.llm_model)
+    prompt_template = ConversationHistoryPromptTemplate()
+    tokenizer = TiktokenTokenizer()
+
+    evaluator = Evaluator(memory_system, llm, chat_dataset, prompt_template, tokenizer)
+    print("Running evaluation...")
+    summary = evaluator.evaluate()
+    print("Evaluation complete.")
+
+    all_memories = memory_system.get_all_memories()
+    print(f"Captured {len(all_memories)} memories from store.")
+
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = output_dir / f"traces_{ts}.json"
+
+    output = {
+        "run_metadata": {
+            "memory_system": args.memory,
+            "llm_model": args.llm_model,
+            "num_memories": args.num_memories,
+            "facts_per_group": args.facts_per_group,
+            "shared_user_id": args.shared_user_id,
+            "dataset_path": str(dataset_path),
+            "num_storage_convs": num_storage_convs,
+            "num_question_convs": num_question_convs,
+            "timestamp": ts,
+        },
+        "all_memories_at_time_of_questions": all_memories,
+        "dataset_rows": dataset_rows,
+        "evaluation_summary": asdict(summary),
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(output, f, indent=2, cls=_UUIDEncoder)
+
+    print("=" * 80)
+    print("CONDITIONAL FACTS EVALUATION COMPLETE")
+    print("=" * 80)
+    print(f"Total conversations:  {summary.total_conversations}")
+    print(f"Total queries:        {summary.total_queries}")
+    print(f"Total cost:           ${summary.total_cost:.4f}")
+    print(f"Total input tokens:   {summary.total_input_tokens:,}")
+    print(f"Total output tokens:  {summary.total_output_tokens:,}")
+    print(f"Saved traces:         {output_path}")
+    print("Run analyze_errors.py on the traces file to grade and classify errors.")
+    print("=" * 80)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,9 @@ class NoHistoryMemorySystem:
     ) -> None:
         pass
 
+    def get_all_memories(self) -> list[str]:
+        return []
+
     def finalize_conversation(self, conversation_id: ConversationID) -> None:
         pass
 
@@ -58,6 +61,9 @@ class SimpleHistoryMemorySystem:
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
         pass
+
+    def get_all_memories(self) -> list[str]:
+        return []
 
     def finalize_conversation(self, conversation_id: ConversationID) -> None:
         pass
