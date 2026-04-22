@@ -36,10 +36,10 @@ from src import ChatSystem, ConversationHistoryPromptTemplate, Mem0MemorySystem,
 # Load .env from project root
 load_dotenv(PARENT_DIR / ".env")
 
-# Alias OPENAI_KEY -> OPENAI_API_KEY so libraries (e.g. mem0) that rely on the
+# Alias OPENAI_API_KEY -> OPENAI_API_KEY so libraries (e.g. mem0) that rely on the
 # standard env var name work without requiring a .env change.
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
+if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
 MAX_JUDGE_RETRIES = 3
 
@@ -370,7 +370,7 @@ def main() -> None:
         default=str(SCRIPT_DIR / "results"),
         help="Output directory",
     )
-    parser.add_argument("--llm-model", type=str, default="gpt-5.-mini", help="Test-taker model")
+    parser.add_argument("--llm-model", type=str, default="gpt-5-mini", help="Test-taker model")
     parser.add_argument("--judge-model", type=str, default="gpt-5-mini", help="Judge model")
     parser.add_argument("--num-memories", type=int, default=5)
     parser.add_argument("--fact-group-size", type=int, default=10)
@@ -378,7 +378,7 @@ def main() -> None:
     parser.add_argument("--api-key", type=str, default=None)
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OpenAI API key required via --api-key or env var.")
 

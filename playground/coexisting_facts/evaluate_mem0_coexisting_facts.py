@@ -52,9 +52,9 @@ from src import (  # noqa: E402
 # Load .env from project root
 load_dotenv(PROJECT_ROOT / ".env")
 
-# Alias OPENAI_KEY -> OPENAI_API_KEY so mem0 and other libs find it
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
+# Alias OPENAI_API_KEY -> OPENAI_API_KEY so mem0 and other libs find it
+if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
 MAX_JUDGE_RETRIES = 3
 QUESTION_TYPE = "coexisting_facts_question"
@@ -512,7 +512,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise ValueError("OpenAI API key required via --api-key or env var.")
 

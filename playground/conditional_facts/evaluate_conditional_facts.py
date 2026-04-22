@@ -24,7 +24,6 @@ import csv
 import json
 import os
 import sys
-import uuid
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -37,38 +36,24 @@ PROJECT_ROOT = SCRIPT_DIR.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src import (  # noqa: E402
-    AMEMMemorySystem,
     ChatDataset,
     ConversationData,
     ConversationHistoryPromptTemplate,
     Evaluator,
-    Mem0MemorySystem,
     OpenAILLM,
-    SimpleMemMemorySystem,
     TiktokenTokenizer,
+)
+from playground.utils import (  # noqa: E402
+    UUIDEncoder,
+    add_api_key_arg,
+    add_memory_system_args,
+    create_memory_system,
+    resolve_api_key,
 )
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
-
 DEFAULT_FACTS_PER_GROUP = 10
-
-COMPLIANCE_INSTRUCTION = (
-    "\n\nAnswer the question directly with yes or no. Then add a line starting with "
-    "'MEMORY_USED:' and either:\n"
-    "- List an exact quote of every specific memory you used, or\n"
-    "- State 'none' if you did not use any memory."
-)
-
-
-class _UUIDEncoder(json.JSONEncoder):
-    def default(self, obj: Any) -> Any:
-        if isinstance(obj, uuid.UUID):
-            return str(obj)
-        return super().default(obj)
-
 
 def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -133,34 +118,16 @@ def build_chat_dataset(
 
     # Phase 2: Question conversations — one graded query per row
     for row in dataset_rows:
-        question = row["question"] + COMPLIANCE_INSTRUCTION
+        question = row["question"]
         conversations.append(ConversationData(queries=[(question, True)]))
 
     return ChatDataset(conversations), num_storage_convs
 
 
-def _create_memory_system(
-    memory: str, num_memories: int, shared_user_id: str, api_key: str
-) -> Any:
-    if memory == "mem0":
-        return Mem0MemorySystem(num_memories=num_memories, shared_user_id=shared_user_id)
-    if memory == "simplemem":
-        return SimpleMemMemorySystem(num_memories=num_memories, api_key=api_key, clear_db=True)
-    if memory == "amem":
-        return AMEMMemorySystem(
-            num_memories=num_memories,
-            llm_backend="openai",
-            llm_model="gpt-4o-mini",
-            embedding_model="all-MiniLM-L6-v2",
-            evo_threshold=100,
-            api_key=api_key,
-        )
-    raise ValueError(f"Unknown memory system: {memory!r}. Choose mem0, simplemem, or amem.")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Evaluate memory systems on conditional-facts dataset."
+        description="Evaluate memory systems on conditional-facts dataset.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--dataset", type=str, required=True, help="Path to dataset CSV.")
     parser.add_argument(
@@ -169,29 +136,22 @@ def main() -> None:
         default=str(SCRIPT_DIR / "results"),
         help="Output directory for results.",
     )
-    parser.add_argument("--llm-model", type=str, default="gpt-4.1-mini", help="Test-taker LLM model.")
-    parser.add_argument("--num-memories", type=int, default=5, help="k for memory retrieval.")
+    parser.add_argument("--llm-model", type=str, default="gpt-5-mini", help="Test-taker LLM model.")
     parser.add_argument(
         "--facts-per-group",
         type=int,
         default=DEFAULT_FACTS_PER_GROUP,
-        help="Number of facts per storage conversation (default: 10).",
+        help="Number of facts per storage conversation.",
     )
-    parser.add_argument("--shared-user-id", type=str, default="conditional_facts_eval_user")
     parser.add_argument("--seed", type=int, default=42, help="(unused) Retained for script compatibility.")
-    parser.add_argument("--api-key", type=str, default=None)
-    parser.add_argument(
-        "--memory",
-        type=str,
-        default="mem0",
-        choices=["mem0", "simplemem", "amem"],
-        help="Memory system to evaluate.",
-    )
+    add_api_key_arg(parser)
+    add_memory_system_args(parser)
     args = parser.parse_args()
+    # Override shared-user-id default to be dataset-specific
+    if args.shared_user_id == "eval_user":
+        args.shared_user_id = "conditional_facts_eval_user"
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OpenAI API key required via --api-key or env var.")
+    api_key = resolve_api_key(args)
 
     dataset_path = Path(args.dataset)
     if not dataset_path.is_absolute():
@@ -215,10 +175,9 @@ def main() -> None:
         f"({args.facts_per_group} facts each), {num_question_convs} question conversations."
     )
 
-    memory_system = _create_memory_system(
-        args.memory, args.num_memories, args.shared_user_id, api_key
-    )
+    memory_system = create_memory_system(args, api_key)
     llm = OpenAILLM(api_key=api_key, model=args.llm_model)
+
     prompt_template = ConversationHistoryPromptTemplate()
     tokenizer = TiktokenTokenizer()
 
@@ -231,27 +190,74 @@ def main() -> None:
     print(f"Captured {len(all_memories)} memories from store.")
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = output_dir / f"traces_{ts}.json"
 
-    output = {
-        "run_metadata": {
-            "memory_system": args.memory,
-            "llm_model": args.llm_model,
-            "num_memories": args.num_memories,
-            "facts_per_group": args.facts_per_group,
-            "shared_user_id": args.shared_user_id,
-            "dataset_path": str(dataset_path),
-            "num_storage_convs": num_storage_convs,
-            "num_question_convs": num_question_convs,
-            "timestamp": ts,
-        },
-        "all_memories_at_time_of_questions": all_memories,
-        "dataset_rows": dataset_rows,
-        "evaluation_summary": asdict(summary),
+    run_metadata = {
+        "memory_system": args.memory,
+        "llm_model": args.llm_model,
+        "num_memories": args.num_memories,
+        "facts_per_group": args.facts_per_group,
+        "shared_user_id": args.shared_user_id,
+        "dataset_path": str(dataset_path),
+        "num_storage_convs": num_storage_convs,
+        "num_question_convs": num_question_convs,
+        "timestamp": ts,
     }
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(output, f, indent=2, cls=_UUIDEncoder)
+    summary_dict = asdict(summary)
+
+    # ── Full traces (all conversations: storage + question) ───────────────────
+    full_path = output_dir / f"traces_{ts}.json"
+    with open(full_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "run_metadata": run_metadata,
+                "all_memories_at_time_of_questions": all_memories,
+                "dataset_rows": dataset_rows,
+                "evaluation_summary": summary_dict,
+            },
+            f, indent=2, cls=UUIDEncoder,
+        )
+
+    # ── Graded traces (question conversations only, dataset metadata merged) ──
+    question_results = summary_dict["results"][num_storage_convs:]
+    graded_traces = []
+    for result, row in zip(question_results, dataset_rows):
+        traces = result["traces"]
+        if not traces:
+            continue
+        trace = traces[0]  # one graded query per question conversation
+        graded_traces.append({
+            # Dataset row metadata
+            "entity": row["entity"],
+            "entity_category": row["entity_category"],
+            "behavior": row["behavior"],
+            "condition_type": row["condition_type"],
+            "condition": row["condition"],
+            "entity_facts": row["entity_facts"],
+            "question_context": row["question_context"],
+            "condition_met": row["condition_met"],
+            "ground_truth_answer": row["ground_truth_answer"],
+            # QueryTrace fields
+            "question": trace["query"],
+            "retrieved_memories": trace["retrieved_memories"],
+            "llm_response": trace["response"],
+            "formatted_prompt": trace["formatted_prompt"],
+            "conversation_id": result["conversation_id"],
+            "eval_input_tokens": trace["input_tokens"],
+            "eval_output_tokens": trace["output_tokens"],
+            "eval_cost": trace["cost"],
+        })
+
+    graded_path = output_dir / f"graded_traces_{ts}.json"
+    with open(graded_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "run_metadata": run_metadata,
+                "all_memories_at_time_of_questions": all_memories,
+                "graded_traces": graded_traces,
+            },
+            f, indent=2, cls=UUIDEncoder,
+        )
 
     print("=" * 80)
     print("CONDITIONAL FACTS EVALUATION COMPLETE")
@@ -261,8 +267,9 @@ def main() -> None:
     print(f"Total cost:           ${summary.total_cost:.4f}")
     print(f"Total input tokens:   {summary.total_input_tokens:,}")
     print(f"Total output tokens:  {summary.total_output_tokens:,}")
-    print(f"Saved traces:         {output_path}")
-    print("Run analyze_errors.py on the traces file to grade and classify errors.")
+    print(f"Saved full traces:    {full_path}")
+    print(f"Saved graded traces:  {graded_path}")
+    print("Run analyze_errors.py on the graded traces file to grade and classify errors.")
     print("=" * 80)
 
 

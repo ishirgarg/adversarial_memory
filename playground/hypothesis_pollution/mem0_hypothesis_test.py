@@ -251,9 +251,9 @@ def main():
     project_root = Path(__file__).parent.parent
 
     # ── API key ───────────────────────────────────────────────────────────────
-    api_key = os.getenv("OPENAI_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_KEY environment variable not set")
+        raise ValueError("OPENAI_API_KEY environment variable not set")
     os.environ["OPENAI_API_KEY"] = api_key  # mem0 expects this name
 
     # ── Resolve CSV path ──────────────────────────────────────────────────────

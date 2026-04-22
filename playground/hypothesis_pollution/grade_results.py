@@ -297,9 +297,9 @@ def main():
                         help="Only grade the first N examples (for testing)")
     args = parser.parse_args()
 
-    api_key = os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit("Error: set OPENAI_KEY or OPENAI_API_KEY environment variable.")
+        sys.exit("Error: set OPENAI_API_KEY or OPENAI_API_KEY environment variable.")
 
     client = OpenAI(api_key=api_key)
 

@@ -36,8 +36,8 @@ SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
+if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
 DEFAULT_MODEL = "gpt-5.4-nano"
@@ -359,9 +359,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit("Error: set OPENAI_KEY or OPENAI_API_KEY environment variable.")
+        sys.exit("Error: set OPENAI_API_KEY or OPENAI_API_KEY environment variable.")
 
     # Resolve traces file
     if args.traces:

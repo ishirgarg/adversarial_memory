@@ -2,22 +2,23 @@
 analyze_errors.py -- Grade and classify errors in conditional-facts traces.
 
 Reads the output of evaluate_conditional_facts.py and grades each graded question
-in a single LLM call per trace. The judge receives:
+using three focused LLM calls:
+
+  Call 1 — Grade: correct or incorrect?
+  Call 2 — Retrieval check: was the conditional fact in RETRIEVED_MEMORIES?
+  Call 3 — Error classification (only when incorrect): storage / retrieval / reasoning error?
+
+The judge receives:
   - ALL_MEMORIES: full memory store at the time of the question
   - RETRIEVED_MEMORIES: the specific memories actually shown to the LLM
   - Dataset metadata: entity, condition, ground truth, etc.
-
-This lets the judge determine whether a wrong answer was due to:
-  storage_error   -- conditional fact absent from ALL_MEMORIES entirely
-  retrieval_error -- conditional fact in ALL_MEMORIES but not RETRIEVED_MEMORIES
-  reasoning_error -- conditional fact in RETRIEVED_MEMORIES but model still failed
 
 Usage:
   uv run python playground/conditional_facts/analyze_errors.py --traces path/to/traces.json
   uv run python playground/conditional_facts/analyze_errors.py  # auto-detects most recent
   uv run python playground/conditional_facts/analyze_errors.py --limit 5
 
-Cost/token metrics for the judge are printed in the final summary.
+Cost/token metrics for all judge calls are printed in the final summary.
 """
 
 import argparse
@@ -43,117 +44,118 @@ from src.llm import compute_cost  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_KEY"]
+if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
+    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_WORKERS = 8
 MAX_RETRIES = 3
 
 # ---------------------------------------------------------------------------
-# Judge prompts
+# Call 1 — Storage check
 # ---------------------------------------------------------------------------
 
-SYSTEM_PROMPT = """\
-You are an expert evaluator analyzing a memory-augmented AI system on conditional-fact questions.
+STORAGE_SYSTEM = """You are checking whether a specific fact was correctly stored in a memory system.
+The fact may have been paraphrased or compressed, but must still convey the same
+information — including any qualifying condition — to count as present."""
 
-The system works as follows:
-1. Facts about entities are stored in memory. Each entity has a CONDITIONAL behavior — they do
-   something only under a specific qualifying condition.
-2. When a question is asked, the memory system retrieves relevant memories (RETRIEVED_MEMORIES)
-   from its full store (ALL_MEMORIES) and shows them to the model.
-3. The model must answer YES when the condition is met and NO (citing the condition) when it is not.
+STORAGE_USER = """ORIGINAL FACT:
+{original_fact}
 
-You will perform three tasks in a single pass:
+ALL_MEMORIES (complete memory store):
+{all_memories_formatted}
 
-TASK 1 — GRADE THE RESPONSE
-Determine whether the model answered correctly given the ground truth.
-  "correct"   — the model's answer aligns with the ground truth:
-                 - Condition IS met: model clearly affirms the behavior
-                 - Condition is NOT met: model declines AND cites the condition as the reason
-  "incorrect" — wrong yes/no, right answer for wrong reason, or "I don't know / no memory"
+Is the original fact present in ALL_MEMORIES, even if paraphrased, as long as the
+qualifying condition is preserved and the meaning is not altered?"""
 
-TASK 2 — CHECK RETRIEVAL
-Did RETRIEVED_MEMORIES contain the entity's conditional fact (entity + qualifying condition,
-even if paraphrased)?
-  true  — the conditional fact is present in retrieved memories
-  false — it is absent
+STORAGE_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "storage_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "fact_in_store": {"type": "boolean"},
+                "storage_reasoning": {"type": "string"},
+            },
+            "required": ["fact_in_store", "storage_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
 
-TASK 3 — CLASSIFY ERROR (only if grade == "incorrect")
-Check these conditions IN ORDER and stop at the first that is true:
+# ---------------------------------------------------------------------------
+# Call 2 — Retrieval check
+# ---------------------------------------------------------------------------
 
-  STEP 1: Is the conditional fact (entity + qualifying condition) absent from ALL_MEMORIES
-          entirely (including cases where the entity appears but the condition was lost)?
-          -> "storage_error"
+RETRIEVAL_SYSTEM = """You are checking whether a specific fact was included in the memories retrieved and
+shown to an AI model when it answered a question."""
 
-  STEP 2: The conditional fact exists in ALL_MEMORIES but is absent from RETRIEVED_MEMORIES.
-          -> "retrieval_error"
 
-  STEP 3: The conditional fact appears in both ALL_MEMORIES and RETRIEVED_MEMORIES, yet the
-          model still failed to apply it correctly.
-          -> "reasoning_error"
+RETRIEVAL_USER = """ORIGINAL QUESTION (used to search the memory store):
+{query}
 
-If grade == "correct", set error_type and missing_element to null.
+ORIGINAL FACT:
+{original_fact}
 
-Return a single JSON object with these fields:
-  "judge_result":          "correct" or "incorrect"
-  "judge_reasoning":       1-2 sentences explaining the grade
-  "entity_facts_in_retrieved": true or false
-  "error_type":            one of ["storage_error", "retrieval_error", "reasoning_error"] or null
-  "missing_element":       brief description of what is missing/wrong, or null
-  "analysis_reasoning":    1-2 sentence explanation of the error classification, or null\
-"""
+RETRIEVED_MEMORIES (shown to the model):
+{retrieved_memories}
 
-USER_TEMPLATE = """\
-ENTITY: {entity}
-CONDITION (when the behavior occurs): {condition}
-CONDITION MET IN QUESTION? {condition_met}
+Was the original fact included in RETRIEVED_MEMORIES? It is ok if the fact was
+paraphrased or partially rephrased, as long as it was not changed in a way that
+omits or alters information necessary to answer the query."""
 
-QUESTION:
-{question}
+RETRIEVAL_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "retrieval_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "entity_facts_in_retrieved": {"type": "boolean"},
+                "retrieval_reasoning": {"type": "string"},
+            },
+            "required": ["entity_facts_in_retrieved", "retrieval_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Call 3 — Invocation check
+# ---------------------------------------------------------------------------
+
+INVOCATION_SYSTEM = """You are checking whether an AI model correctly used a retrieved memory to answer
+a conditional-fact question.
+
+The model was shown the relevant memory and must answer YES if the condition is met,
+or NO while citing the condition if it is not met."""
+
+INVOCATION_USER = """ORIGINAL FACT (was present in retrieved memories):
+{original_fact}
 
 GROUND TRUTH ANSWER:
 {ground_truth_answer}
 
-ALL_MEMORIES (complete memory store at time of question):
-{all_memories_formatted}
-
-RETRIEVED_MEMORIES (memories actually shown to the model):
-{retrieved_memories}
-
 MODEL RESPONSE:
-{llm_response}\
-"""
+{llm_response}
 
-SCHEMA = {
+Did the model correctly invoke the memory and arrive at the right answer?"""
+
+INVOCATION_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
-        "name": "conditional_facts_analysis",
+        "name": "invocation_check",
         "schema": {
             "type": "object",
             "properties": {
-                "judge_result": {
-                    "type": "string",
-                    "enum": ["correct", "incorrect"],
-                },
-                "judge_reasoning": {"type": "string"},
-                "entity_facts_in_retrieved": {"type": "boolean"},
-                "error_type": {
-                    "type": ["string", "null"],
-                    "enum": ["storage_error", "retrieval_error", "reasoning_error", None],
-                },
-                "missing_element": {"type": ["string", "null"]},
-                "analysis_reasoning": {"type": ["string", "null"]},
+                "correctly_invoked": {"type": "boolean"},
+                "invocation_reasoning": {"type": "string"},
             },
-            "required": [
-                "judge_result",
-                "judge_reasoning",
-                "entity_facts_in_retrieved",
-                "error_type",
-                "missing_element",
-                "analysis_reasoning",
-            ],
+            "required": ["correctly_invoked", "invocation_reasoning"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -173,11 +175,15 @@ def format_all_memories(all_memories: list) -> str:
 
 
 def auto_detect_traces_file(results_dir: Path) -> Path:
+    # Prefer graded_traces_*.json (question-only output), fall back to full traces_*.json
+    graded = list(results_dir.glob("graded_traces_*.json")) + list(results_dir.glob("*/graded_traces_*.json"))
+    if graded:
+        return max(graded, key=lambda p: p.stat().st_mtime)
     candidates = list(results_dir.glob("traces_*.json")) + list(results_dir.glob("*/traces_*.json"))
     candidates = [p for p in candidates if not p.name.startswith("traces_compact_")]
     if not candidates:
         raise FileNotFoundError(
-            f"No traces_*.json files found under {results_dir}. "
+            f"No graded_traces_*.json or traces_*.json files found under {results_dir}. "
             "Run evaluate_conditional_facts.py first, or pass --traces explicitly."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -230,8 +236,38 @@ def extract_graded_traces(data: dict) -> Tuple[List[dict], List[dict]]:
 
 
 # ---------------------------------------------------------------------------
-# Judge call
+# Judge calls
 # ---------------------------------------------------------------------------
+
+
+def _call(
+    client: OpenAI,
+    model: str,
+    system: str,
+    user: str,
+    schema: dict,
+) -> Tuple[dict, int, int]:
+    """Make one structured judge call with retries. Returns (data, in_tok, out_tok)."""
+    last_error: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                response_format=schema,
+            )
+            data = json.loads(resp.choices[0].message.content)
+            in_tok = resp.usage.prompt_tokens if resp.usage else 0
+            out_tok = resp.usage.completion_tokens if resp.usage else 0
+            return data, in_tok, out_tok
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES:
+                time.sleep(0.4 * attempt)
+    raise RuntimeError(f"Judge call failed after {MAX_RETRIES} attempts: {last_error}") from last_error
 
 
 def analyze_trace(
@@ -240,71 +276,108 @@ def analyze_trace(
     trace: dict,
     all_memories: list,
 ) -> Tuple[dict, int, int]:
-    """Grade and classify a single graded trace in one LLM call.
+    """Grade a single trace via a short-circuit pipeline of three binary checks.
 
-    Returns (result_dict, input_tokens, output_tokens). Never raises.
-    input_tokens / output_tokens are from the judge API call (0 on failure).
+    Call 1 — Storage:   is the original fact in ALL_MEMORIES?
+                        No  → storage_error, stop.
+    Call 2 — Retrieval: was the fact included in RETRIEVED_MEMORIES?
+                        No  → retrieval_error, stop.
+    Call 3 — Invocation: did the model correctly use the fact to answer?
+                        No  → reasoning_error, stop.
+                        Yes → correct (by elimination).
+
+    Returns (result_dict, total_input_tokens, total_output_tokens). Never raises.
     """
     result = {k: v for k, v in trace.items()}
     result["judge_result"] = None
     result["judge_reasoning"] = None
+    result["fact_in_store"] = None
+    result["storage_reasoning"] = None
     result["entity_facts_in_retrieved"] = None
+    result["retrieval_reasoning"] = None
+    result["correctly_invoked"] = None
+    result["invocation_reasoning"] = None
     result["error_type"] = None
-    result["missing_element"] = None
-    result["analysis_reasoning"] = None
     result["analysis_error"] = None
 
-    input_tokens = 0
-    output_tokens = 0
+    total_in = 0
+    total_out = 0
+
+    original_fact = (trace.get("entity_facts") or [""])[0]
+    retrieved = trace.get("retrieved_memories") or "(none)"
 
     try:
-        all_memories_formatted = format_all_memories(all_memories)
-        retrieved = trace.get("retrieved_memories") or "(none)"
-
-        user_content = USER_TEMPLATE.format(
-            entity=trace.get("entity", ""),
-            condition=trace.get("condition", ""),
-            condition_met=trace.get("condition_met", ""),
-            question=trace["question"],
-            ground_truth_answer=trace.get("ground_truth_answer", ""),
-            all_memories_formatted=all_memories_formatted,
-            retrieved_memories=retrieved,
-            llm_response=trace["llm_response"],
+        # ── Call 1: Storage check ────────────────────────────────────────────
+        storage_data, in_tok, out_tok = _call(
+            client, model,
+            system=STORAGE_SYSTEM,
+            user=STORAGE_USER.format(
+                original_fact=original_fact,
+                all_memories_formatted=format_all_memories(all_memories),
+            ),
+            schema=STORAGE_SCHEMA,
         )
+        total_in += in_tok
+        total_out += out_tok
+        result["fact_in_store"] = storage_data["fact_in_store"]
+        result["storage_reasoning"] = storage_data["storage_reasoning"]
 
-        last_error: Optional[Exception] = None
-        for attempt in range(1, MAX_RETRIES + 1):
-            try:
-                resp = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                    response_format=SCHEMA,
-                )
-                data = json.loads(resp.choices[0].message.content)
-                result["judge_result"] = data["judge_result"]
-                result["judge_reasoning"] = data["judge_reasoning"]
-                result["entity_facts_in_retrieved"] = data["entity_facts_in_retrieved"]
-                result["error_type"] = data.get("error_type")
-                result["missing_element"] = data.get("missing_element")
-                result["analysis_reasoning"] = data.get("analysis_reasoning")
-                if resp.usage:
-                    input_tokens = resp.usage.prompt_tokens
-                    output_tokens = resp.usage.completion_tokens
-                return result, input_tokens, output_tokens
-            except Exception as e:
-                last_error = e
-                if attempt < MAX_RETRIES:
-                    time.sleep(0.4 * attempt)
+        if not storage_data["fact_in_store"]:
+            result["judge_result"] = "incorrect"
+            result["error_type"] = "storage_error"
+            result["judge_reasoning"] = storage_data["storage_reasoning"]
+            return result, total_in, total_out
 
-        result["analysis_error"] = str(last_error)
+        # ── Call 2: Retrieval check ──────────────────────────────────────────
+        retrieval_data, in_tok, out_tok = _call(
+            client, model,
+            system=RETRIEVAL_SYSTEM,
+            user=RETRIEVAL_USER.format(
+                query=trace["question"],
+                original_fact=original_fact,
+                retrieved_memories=retrieved,
+            ),
+            schema=RETRIEVAL_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["entity_facts_in_retrieved"] = retrieval_data["entity_facts_in_retrieved"]
+        result["retrieval_reasoning"] = retrieval_data["retrieval_reasoning"]
+
+        if not retrieval_data["entity_facts_in_retrieved"]:
+            result["judge_result"] = "incorrect"
+            result["error_type"] = "retrieval_error"
+            result["judge_reasoning"] = retrieval_data["retrieval_reasoning"]
+            return result, total_in, total_out
+
+        # ── Call 3: Invocation check ─────────────────────────────────────────
+        invocation_data, in_tok, out_tok = _call(
+            client, model,
+            system=INVOCATION_SYSTEM,
+            user=INVOCATION_USER.format(
+                original_fact=original_fact,
+                ground_truth_answer=trace.get("ground_truth_answer", ""),
+                llm_response=trace["llm_response"],
+            ),
+            schema=INVOCATION_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["correctly_invoked"] = invocation_data["correctly_invoked"]
+        result["invocation_reasoning"] = invocation_data["invocation_reasoning"]
+
+        if not invocation_data["correctly_invoked"]:
+            result["judge_result"] = "incorrect"
+            result["error_type"] = "reasoning_error"
+            result["judge_reasoning"] = invocation_data["invocation_reasoning"]
+        else:
+            result["judge_result"] = "correct"
+            result["judge_reasoning"] = invocation_data["invocation_reasoning"]
 
     except Exception as exc:
         result["analysis_error"] = str(exc)
 
-    return result, input_tokens, output_tokens
+    return result, total_in, total_out
 
 
 # ---------------------------------------------------------------------------
@@ -364,10 +437,11 @@ def save_outputs(results: list, output_dir: Path, ts: str):
         json.dump(results, f, indent=2)
 
     fieldnames = [
-        "conversation_id", "judge_result", "entity_facts_in_retrieved",
-        "error_type", "condition_met", "condition_type", "entity", "condition",
-        "ground_truth_answer", "missing_element", "question",
-        "judge_reasoning", "analysis_reasoning",
+        "conversation_id", "judge_result", "error_type",
+        "fact_in_store", "entity_facts_in_retrieved", "correctly_invoked",
+        "condition_met", "condition_type", "entity", "condition",
+        "ground_truth_answer", "question",
+        "judge_reasoning", "storage_reasoning", "retrieval_reasoning", "invocation_reasoning",
         "eval_input_tokens", "eval_output_tokens", "eval_cost",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -413,9 +487,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit("Error: set OPENAI_KEY or OPENAI_API_KEY environment variable.")
+        sys.exit("Error: set OPENAI_API_KEY or OPENAI_API_KEY environment variable.")
 
     if args.traces:
         traces_path = Path(args.traces)
@@ -429,7 +503,13 @@ def main() -> None:
         data = json.load(f)
 
     all_memories = data["all_memories_at_time_of_questions"]
-    graded_traces, _ = extract_graded_traces(data)
+
+    # graded_traces_*.json has a flat "graded_traces" list already;
+    # full traces_*.json requires extraction via extract_graded_traces().
+    if "graded_traces" in data:
+        graded_traces = data["graded_traces"]
+    else:
+        graded_traces, _ = extract_graded_traces(data)
 
     print(f"Total graded traces: {len(graded_traces)}")
     print(f"All memories in store: {len(all_memories)}")
