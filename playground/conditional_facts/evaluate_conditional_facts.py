@@ -53,7 +53,7 @@ from playground.utils import (  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-DEFAULT_FACTS_PER_GROUP = 10
+DEFAULT_FACTS_PER_GROUP = 1
 
 def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []

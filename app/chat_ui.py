@@ -71,7 +71,7 @@ def create_memory_system(memory_type: str, **kwargs):
             llm_model=kwargs.pop("llm_model", "gpt-4o-mini"),
             embedding_model=kwargs.pop("embedding_model", "all-MiniLM-L6-v2"),
             evo_threshold=kwargs.pop("evo_threshold", 10),
-            api_key=kwargs.pop("api_key", os.getenv("OPENAI_KEY")),
+            api_key=kwargs.pop("api_key", os.getenv("OPENAI_API_KEY")),
             **kwargs,
         )
     else:
@@ -85,9 +85,9 @@ def create_memory_system(memory_type: str, **kwargs):
 def create_llm(llm_type: str, **kwargs):
     """Create an LLM based on type."""
     if llm_type == "openai":
-        api_key = kwargs.pop("api_key", os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY"))
+        api_key = kwargs.pop("api_key", os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"))
         if not api_key:
-            raise ValueError("OPENAI_KEY or OPENAI_API_KEY environment variable required")
+            raise ValueError("OPENAI_API_KEY or OPENAI_API_KEY environment variable required")
         model = kwargs.pop("model", "gpt-4o-mini")
         return OpenAILLM(api_key=api_key, model=model, **kwargs)
     elif llm_type == "ollama":

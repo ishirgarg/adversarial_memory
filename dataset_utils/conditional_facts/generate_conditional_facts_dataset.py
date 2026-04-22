@@ -366,9 +366,9 @@ def main() -> None:
     parser.add_argument("--api-key", type=str, default=None, help="OpenAI API key.")
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OpenAI API key required via --api-key, OPENAI_KEY, or OPENAI_API_KEY.")
+        raise ValueError("OpenAI API key required via --api-key, OPENAI_API_KEY, or OPENAI_API_KEY.")
 
     generate_dataset(
         output_csv=Path(args.output_csv),

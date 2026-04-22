@@ -333,15 +333,15 @@ def main():
         "--api-key",
         type=str,
         default=None,
-        help="OpenAI API key (default: from OPENAI_KEY or OPENAI_API_KEY env var)"
+        help="OpenAI API key (default: from OPENAI_API_KEY or OPENAI_API_KEY env var)"
     )
     
     args = parser.parse_args()
     
     # Get API key
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OpenAI API key required. Set OPENAI_KEY or OPENAI_API_KEY environment variable, or use --api-key")
+        raise ValueError("OpenAI API key required. Set OPENAI_API_KEY or OPENAI_API_KEY environment variable, or use --api-key")
     
     # Determine output path
     if args.output:

@@ -126,7 +126,7 @@ class EvaluationPromptTemplate(Protocol):
     Defines how to format the final prompt given query, memories, and conversation history.
     """
 
-    def format(self, query: str, memories: str, conversation: Conversation) -> str:
+    def format(self, query: str, memories: str, conversation: Conversation, graded: bool = True) -> str:
         """
         Format a prompt for evaluation.
 
@@ -134,6 +134,7 @@ class EvaluationPromptTemplate(Protocol):
             query: The current user query
             memories: The memories retrieved from the memory system
             conversation: The conversation history
+            graded: Whether this turn is graded (uses full evaluation prompt vs simple storage prompt)
 
         Returns:
             The formatted prompt string to send to the LLM

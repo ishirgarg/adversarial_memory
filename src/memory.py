@@ -81,20 +81,29 @@ class Mem0MemorySystem:
         self,
         num_memories: int,
         shared_user_id: str | None = None,
+        llm_provider: str = "openai",
+        llm_model: str = "gpt-4o-mini",
         embedding_provider: str | None = None,
         embedding_model: str | None = None,
-        **mem0_kwargs,
+        ollama_base_url: str | None = None,
     ):
-        if embedding_provider and embedding_model:
-            embedder_config: dict = {
-                "provider": embedding_provider,
-                "config": {"model": embedding_model},
-            }
-            if embedding_provider == "ollama" and "ollama_base_url" in mem0_kwargs:
-                embedder_config["config"]["base_url"] = mem0_kwargs.pop("ollama_base_url")
-            mem0_kwargs["embedder"] = embedder_config
+        from mem0.configs.base import MemoryConfig
+        from mem0.llms.configs import LlmConfig
+        from mem0.embeddings.configs import EmbedderConfig
 
-        self.memory = mem0.Memory(**mem0_kwargs)
+        llm_cfg = LlmConfig(provider=llm_provider, config={"model": llm_model})
+
+        config_kwargs: dict = {"llm": llm_cfg}
+
+        if embedding_provider and embedding_model:
+            embedder_cfg_data: dict = {"model": embedding_model}
+            if embedding_provider == "ollama" and ollama_base_url:
+                embedder_cfg_data["base_url"] = ollama_base_url
+            config_kwargs["embedder"] = EmbedderConfig(
+                provider=embedding_provider, config=embedder_cfg_data
+            )
+
+        self.memory = mem0.Memory(config=MemoryConfig(**config_kwargs))
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id
 
@@ -143,14 +152,14 @@ class AMEMMemorySystem:
     def __init__(
         self,
         num_memories: int,
-        llm_backend: str,
-        llm_model: str,
-        embedding_model: str,
-        evo_threshold: int,
+        llm_backend: str = "openai",
+        llm_model: str = "gpt-4o-mini",
+        embedding_model: str = "all-MiniLM-L6-v2",
+        evo_threshold: int = 100,
         api_key: str | None = None,
     ):
         if api_key is None:
-            api_key = os.getenv("OPENAI_KEY")
+            api_key = os.getenv("OPENAI_API_KEY")
 
         amem_dir = str(Path(__file__).parent.parent / "a-mem")
         if amem_dir not in sys.path:
@@ -220,29 +229,29 @@ class SimpleMemMemorySystem:
         self,
         num_memories: int | None = None,
         api_key: Optional[str] = None,
-        model: Optional[str] = None,
+        model: str = "gpt-4.1-mini",
         base_url: Optional[str] = None,
-        db_path: Optional[str] = None,
+        db_path: str = "./lancedb_data",
         clear_db: bool = True,
-        embedding_model: Optional[str] = None,
-        embedding_dimension: Optional[int] = None,
-        embedding_context_length: Optional[int] = None,
-        enable_thinking: Optional[bool] = None,
-        use_streaming: Optional[bool] = None,
-        use_json_format: Optional[bool] = None,
-        window_size: Optional[int] = None,
-        overlap_size: Optional[int] = None,
+        embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_dimension: int = 384,
+        embedding_context_length: int = 512,
+        enable_thinking: bool = False,
+        use_streaming: bool = False,
+        use_json_format: bool = False,
+        window_size: int = 20,
+        overlap_size: int = 2,
         semantic_top_k: Optional[int] = None,
         keyword_top_k: Optional[int] = None,
         structured_top_k: Optional[int] = None,
-        memory_table_name: Optional[str] = None,
-        enable_parallel_processing: Optional[bool] = None,
-        max_parallel_workers: Optional[int] = None,
-        enable_parallel_retrieval: Optional[bool] = None,
-        max_retrieval_workers: Optional[int] = None,
-        enable_planning: Optional[bool] = None,
-        enable_reflection: Optional[bool] = None,
-        max_reflection_rounds: Optional[int] = None,
+        memory_table_name: str = "memory_entries",
+        enable_parallel_processing: bool = True,
+        max_parallel_workers: int = 16,
+        enable_parallel_retrieval: bool = True,
+        max_retrieval_workers: int = 8,
+        enable_planning: bool = True,
+        enable_reflection: bool = True,
+        max_reflection_rounds: int = 2,
     ):
         self.num_memories = num_memories
         simplemem_dir = Path(__file__).parent.parent / "SimpleMem"
@@ -250,10 +259,9 @@ class SimpleMemMemorySystem:
         if simplemem_dir_str not in sys.path:
             sys.path.insert(0, simplemem_dir_str)
 
-        resolved_api_key = api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY") or ""
-        resolved_model = model or "gpt-4.1-mini"
+        resolved_api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
 
-        # top-k: fall back to num_memories, then to SimpleMem defaults
+        # top-k: fall back to num_memories if not explicitly set
         resolved_semantic_top_k = semantic_top_k if semantic_top_k is not None else (num_memories if num_memories is not None else 25)
         resolved_keyword_top_k = keyword_top_k if keyword_top_k is not None else (num_memories if num_memories is not None else 5)
         resolved_structured_top_k = structured_top_k if structured_top_k is not None else (num_memories if num_memories is not None else 5)
@@ -262,27 +270,27 @@ class SimpleMemMemorySystem:
         config_path.write_text(
             f"OPENAI_API_KEY = {resolved_api_key!r}\n"
             f"OPENAI_BASE_URL = {base_url!r}\n"
-            f"LLM_MODEL = {resolved_model!r}\n"
-            f"EMBEDDING_MODEL = {(embedding_model or 'all-MiniLM-L6-v2')!r}\n"
-            f"EMBEDDING_DIMENSION = {embedding_dimension or 384}\n"
-            f"EMBEDDING_CONTEXT_LENGTH = {embedding_context_length or 512}\n"
-            f"ENABLE_THINKING = {enable_thinking if enable_thinking is not None else False}\n"
-            f"USE_STREAMING = {use_streaming if use_streaming is not None else False}\n"
-            f"USE_JSON_FORMAT = {use_json_format if use_json_format is not None else False}\n"
-            f"WINDOW_SIZE = {window_size or 20}\n"
-            f"OVERLAP_SIZE = {overlap_size or 2}\n"
+            f"LLM_MODEL = {model!r}\n"
+            f"EMBEDDING_MODEL = {embedding_model!r}\n"
+            f"EMBEDDING_DIMENSION = {embedding_dimension}\n"
+            f"EMBEDDING_CONTEXT_LENGTH = {embedding_context_length}\n"
+            f"ENABLE_THINKING = {enable_thinking}\n"
+            f"USE_STREAMING = {use_streaming}\n"
+            f"USE_JSON_FORMAT = {use_json_format}\n"
+            f"WINDOW_SIZE = {window_size}\n"
+            f"OVERLAP_SIZE = {overlap_size}\n"
             f"SEMANTIC_TOP_K = {resolved_semantic_top_k}\n"
             f"KEYWORD_TOP_K = {resolved_keyword_top_k}\n"
             f"STRUCTURED_TOP_K = {resolved_structured_top_k}\n"
-            f"LANCEDB_PATH = {(db_path or './lancedb_data')!r}\n"
-            f"MEMORY_TABLE_NAME = {(memory_table_name or 'memory_entries')!r}\n"
-            f"ENABLE_PARALLEL_PROCESSING = {enable_parallel_processing if enable_parallel_processing is not None else True}\n"
-            f"MAX_PARALLEL_WORKERS = {max_parallel_workers or 16}\n"
-            f"ENABLE_PARALLEL_RETRIEVAL = {enable_parallel_retrieval if enable_parallel_retrieval is not None else True}\n"
-            f"MAX_RETRIEVAL_WORKERS = {max_retrieval_workers or 8}\n"
-            f"ENABLE_PLANNING = {enable_planning if enable_planning is not None else True}\n"
-            f"ENABLE_REFLECTION = {enable_reflection if enable_reflection is not None else True}\n"
-            f"MAX_REFLECTION_ROUNDS = {max_reflection_rounds or 2}\n"
+            f"LANCEDB_PATH = {db_path!r}\n"
+            f"MEMORY_TABLE_NAME = {memory_table_name!r}\n"
+            f"ENABLE_PARALLEL_PROCESSING = {enable_parallel_processing}\n"
+            f"MAX_PARALLEL_WORKERS = {max_parallel_workers}\n"
+            f"ENABLE_PARALLEL_RETRIEVAL = {enable_parallel_retrieval}\n"
+            f"MAX_RETRIEVAL_WORKERS = {max_retrieval_workers}\n"
+            f"ENABLE_PLANNING = {enable_planning}\n"
+            f"ENABLE_REFLECTION = {enable_reflection}\n"
+            f"MAX_REFLECTION_ROUNDS = {max_reflection_rounds}\n"
         )
 
         from main import SimpleMemSystem  # type: ignore

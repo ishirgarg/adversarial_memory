@@ -21,49 +21,43 @@ class SimplePromptTemplate:
     Simple prompt template that prepends memories to the query.
     """
 
-    def format(self, query: Prompt, memories: str, conversation: Conversation) -> str:
-        """
-        Format the prompt by prepending memories to the query.
-
-        Args:
-            query: The current user query
-            memories: The memories retrieved from the memory system
-            conversation: The conversation history (not used in this template)
-
-        Returns:
-            The formatted prompt string
-        """
+    def format(self, query: Prompt, memories: str, conversation: Conversation, graded: bool = True) -> str:
         return query
 
 
 class ConversationHistoryPromptTemplate:
     """
     Prompt template that includes both memories and full conversation history.
+
+    Graded turns receive the full evaluation prompt with explicit instructions.
+    Ungraded turns receive a minimal prompt (memories + history + query only).
     """
 
-    def format(self, query: Prompt, memories: str, conversation: Conversation) -> str:
-        """
-        Format the prompt with memories and conversation history.
+    def format(self, query: Prompt, memories: str, conversation: Conversation, graded: bool = True) -> str:
+        history = format_history(conversation)
 
-        Args:
-            query: The current user query
-            memories: The memories retrieved from the memory system
-            conversation: The conversation history
+        if not graded:
+            parts = [
+                "You are a helpful chat assistant. Read the user's message carefully "
+                "and remember any new personal information, preferences, or facts they share that you feel are important to remember."
+                "They may be recalled in future conversations."
+            ]
+            if memories:
+                parts.append(f"Relevant Past Memories:\n{memories}")
+            if history:
+                parts.append(f"Conversation History:\n{history}")
+            parts.append(f"User: {query}")
+            return "\n\n".join(parts)
 
-        Returns:
-            The formatted prompt string
-        """
-
-        prompt = f"""You are an intelligent memory assistant tasked with answering questions using information from past conversation memories.
+        return f"""You are an intelligent memory assistant tasked with answering questions using information from past conversation memories.
 
 # CONTEXT:
-You have access to memories from previous conversations as well as the conversation history that may be helpful in answering the question..
+You have access to memories from previous conversations as well as the conversation history that may be helpful in answering the question.
 
 # INSTRUCTIONS:
-Answer the user's question. You may use the provided memories if they are helpful. If the user does not ask a question, you do not need to respond nor verify the statement as if it were a question, just respond as normal and update your memory with the new information.
-If you use the memories above to answer a question, please EXPLICITLY RESTATE which memories you used below, or state that you used no memories. You should only use and restate those memories if you explicitly used them to draw conclusions from them.
+Answer the user's question. You may use the provided memories if they are helpful. If you use the memories above to answer a question, please EXPLICITLY RESTATE which memories you used below, or state that you used no memories. You should only use and restate those memories if you explicitly used them to draw conclusions from them.
 Conversation History:
-{format_history(conversation)}
+{history}
 Relevant Memories:
 {memories}
 END of Relevant Memories
@@ -71,4 +65,3 @@ END of Relevant Memories
 User Question:
 {query}
 Answer:"""
-        return prompt

@@ -33,9 +33,9 @@ def generate_essay(question: str, false_assertion: str, openai_model: str) -> st
     Returns:
         Generated essay string
     """
-    api_key = os.getenv("OPENAI_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_KEY environment variable not set")
+        raise ValueError("OPENAI_API_KEY environment variable not set")
     
     client = OpenAI(api_key=api_key)
     

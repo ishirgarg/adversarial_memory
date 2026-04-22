@@ -455,13 +455,13 @@ def main() -> None:
         "--api-key",
         type=str,
         default=None,
-        help="OpenAI API key (defaults to OPENAI_KEY or OPENAI_API_KEY env var).",
+        help="OpenAI API key (defaults to OPENAI_API_KEY or OPENAI_API_KEY env var).",
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OpenAI API key required via --api-key, OPENAI_KEY, or OPENAI_API_KEY.")
+        raise ValueError("OpenAI API key required via --api-key, OPENAI_API_KEY, or OPENAI_API_KEY.")
 
     generate_pii_dataset(
         input_csv=Path(args.input_csv),

@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass, field
 from typing import List
 
+from tqdm import tqdm
+
 from .chat import ChatSystem
 from .dataset import ChatDataset, ConversationData
 from .llm import compute_cost
@@ -46,8 +48,6 @@ class QueryTrace:
     # Timing breakdown for this turn (seconds)
     retrieval_time: float
     llm_time: float
-    # Snapshot of all memories stored in the system after this turn's update
-    all_memories: list
 
 
 @dataclass
@@ -186,7 +186,7 @@ class Evaluator:
             total_retrieval_time += retrieval_time
 
             # ── Prompt formatting ────────────────────────────────────────────
-            prompt = self.prompt_template.format(query, memories, conversation)
+            prompt = self.prompt_template.format(query, memories, conversation, graded=should_grade)
 
             # Tokenizer-based breakdown (used regardless of LLM backend)
             memory_tokens = self.tokenizer.tokenized_length(memories)
@@ -226,9 +226,6 @@ class Evaluator:
             # ── Memory update ─────────────────────────────────────────────────
             self.memory_system.update_memory(query, response, conversation)
 
-            # ── Snapshot all stored memories after the update ─────────────────
-            all_memories = self.memory_system.get_all_memories()
-
             # ── Record full trace for this turn ───────────────────────────────
             traces.append(
                 QueryTrace(
@@ -244,7 +241,6 @@ class Evaluator:
                     cost=cost,
                     retrieval_time=retrieval_time,
                     llm_time=llm_time,
-                    all_memories=all_memories,
                 )
             )
 
@@ -281,7 +277,7 @@ class Evaluator:
         results: List[EvaluationResult] = []
 
         dataset_start_time = time.time()
-        for conversation_data in self.dataset:
+        for conversation_data in tqdm(self.dataset, desc="Evaluating"):
             result = self.evaluate_conversation(conversation_data)
             results.append(result)
         dataset_wall_time = time.time() - dataset_start_time

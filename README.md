@@ -7,5 +7,5 @@ pip install uv
 
 Locally yyour `.env` file can have
 ```
-OPENAI_KEY=
+OPENAI_API_KEY=
 ```

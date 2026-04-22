@@ -38,9 +38,9 @@ def reformat_as_assertive(
     if len(questions) != len(incorrect_answers):
         raise ValueError("questions and incorrect_answers must have the same length")
 
-    api_key = os.getenv("OPENAI_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_KEY environment variable not set")
+        raise ValueError("OPENAI_API_KEY environment variable not set")
 
     client = OpenAI(api_key=api_key)
     assertives = []
@@ -162,9 +162,9 @@ def generate_implications(
         output_csv: Path to save the output CSV with columns: question, assertive, implication_question
         openai_model: OpenAI model to use (default: "gpt-4.1-mini")
     """
-    api_key = os.getenv("OPENAI_KEY")
+    api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_KEY environment variable not set")
+        raise ValueError("OPENAI_API_KEY environment variable not set")
 
     client = OpenAI(api_key=api_key)
 
