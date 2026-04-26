@@ -43,60 +43,129 @@ load_dotenv(PROJECT_ROOT / ".env")
 from dataset_utils.dedup import deduplicate  # noqa: E402
 
 PREFERENCE_CATEGORIES = [
+    # Food & drink
     "foods",
-    "music genres",
-    "hobbies",
-    "sports",
-    "outdoor activities",
-    "types of movies",
     "cuisines",
-    "physical exercises",
     "types of desserts",
     "drinks",
+    "coffee types",
+    "tea varieties",
+    "breakfast foods",
+    "street foods",
+    "snack types",
+    "cocktail types",
+    "cooking methods",
+    "restaurant types",
 
     # Entertainment & media
+    "music genres",
+    "types of movies",
     "book genres",
     "tv show genres",
     "video game genres",
     "podcast topics",
     "comedy styles",
+    "documentary subjects",
+    "types of concerts",
+    "types of museums",
+    "sports to watch on TV",
+    "types of theater",
 
-    # Lifestyle
+    # Physical activity
+    "sports",
+    "outdoor activities",
+    "physical exercises",
+    "fitness class types",
+    "martial arts styles",
+    "dance styles",
+    "cycling types",
+    "swimming styles",
+    "types of yoga",
+    "hiking styles",
+
+    # Lifestyle & personal style
     "fashion styles",
     "home decor styles",
+    "makeup styles",
+    "jewelry types",
+    "shoe styles",
+    "hair care styles",
+    "skincare routines",
+    "bag styles",
+    "hat styles",
+
+    # Travel & places
     "travel destinations",
     "vacation types",
-    "weekend activities",
+    "nature environments",
+    "city neighborhood types",
+    "outdoor dining settings",
 
-    # Social & personal interests
-    "conversation topics",
+    # Hobbies & creativity
+    "hobbies",
+    "crafts",
+    "art styles",
+    "photography styles",
+    "creative writing styles",
+    "musical instruments",
+    "types of puzzles",
+    "journaling styles",
+    "home improvement projects",
+    "garden types",
+    "houseplants",
+
+    # Social & leisure
+    "weekend activities",
     "party activities",
     "dating activities",
-    "social media content types",
+    "types of social gatherings",
+    "board games",
+    "card games",
+    "conversation topics",
 
-    # Learning & work
-    "academic subjects",
-    "career fields",
-    "skills to learn",
-    "productivity methods",
-
-    # Tech & creative
+    # Tech & learning
     "programming languages",
     "tech interests",
-    "art styles",
-    "crafts",
+    "academic subjects",
+    "skills to learn",
+    "languages to learn",
+    "language learning methods",
+    "study techniques",
+    "note-taking methods",
+    "productivity methods",
 
-    # Wellness
+    # Wellness & self-care
     "mental health activities",
     "meditation types",
     "self-care activities",
     "sleep habits",
+    "morning routine habits",
+    "evening routine habits",
+
+    # Career & finance
+    "career fields",
+    "types of volunteering",
+    "investment types",
+    "budget planning methods",
+
+    # Media consumption
+    "social media content types",
+    "news formats",
+    "podcast formats",
+    "types of reading material",
+    "audio listening formats",
+    "content creation types",
 
     # Misc
     "animals",
-    "board games",
-    "card games",
+    "dog breeds",
     "collectibles",
+    "subscription box types",
+    "car types",
+    "home organization methods",
+    "types of naps",
+    "camping styles",
+    "astrology interests",
 ]
 
 
@@ -201,31 +270,33 @@ def generate_batch(
 
 
 def build_specs(
-    num_rows: int,
     categories: List[str],
     rng: random.Random,
 ) -> List[Dict[str, Any]]:
-    specs = []
-    for i in range(num_rows):
-        specs.append({
+    """One spec per category, in shuffled order."""
+    shuffled = list(categories)
+    rng.shuffle(shuffled)
+    return [
+        {
             "row_id": i,
-            "preference_category": rng.choice(categories),
+            "preference_category": cat,
             "num_preferences": rng.randint(2, 5),
-        })
-    return specs
+        }
+        for i, cat in enumerate(shuffled)
+    ]
 
 
 def generate_dataset(
     output_csv: Path,
     api_key: str,
-    num_rows: int,
     batch_size: int,
     seed: int,
 ) -> None:
     rng = random.Random(seed)
     client = OpenAI(api_key=api_key)
 
-    all_specs = build_specs(num_rows, PREFERENCE_CATEGORIES, rng)
+    all_specs = build_specs(PREFERENCE_CATEGORIES, rng)
+    num_rows = len(all_specs)
     all_rows: List[Dict[str, str]] = []
 
     num_batches = (num_rows + batch_size - 1) // batch_size
@@ -286,7 +357,7 @@ def generate_dataset(
         "git_commit": git_commit,
         "git_dirty": git_dirty,
         "model_name": MODEL_NAME,
-        "num_rows_requested": num_rows,
+        "num_categories": len(PREFERENCE_CATEGORIES),
         "num_rows_raw": len_raw,
         "num_rows_deduped": len(all_rows),
         "rows_removed_by_dedup": len_raw - len(all_rows),
@@ -344,7 +415,7 @@ def main() -> None:
         default=str(PROJECT_ROOT / "datasets" / "coexisting_facts" / "coexisting_facts_dataset.csv"),
         help="Path to output CSV.",
     )
-    parser.add_argument("--num-rows", type=int, default=50, help="Number of datapoints to generate.")
+    parser.add_argument("--num-rows", type=int, default=None, help="(ignored) rows are now fixed at one per category.")
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help="Rows per LLM call.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--api-key", type=str, default=None, help="OpenAI API key.")
@@ -357,7 +428,6 @@ def main() -> None:
     generate_dataset(
         output_csv=Path(args.output_csv),
         api_key=api_key,
-        num_rows=args.num_rows,
         batch_size=args.batch_size,
         seed=args.seed,
     )
