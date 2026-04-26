@@ -213,6 +213,18 @@ INVOCATION_SCHEMA = {
 # ---------------------------------------------------------------------------
 
 FACT_CATEGORIES = ["not_stored", "summary_error", "not_retrieved", "correct"]
+ERROR_TYPE_PRIORITY = ["not_stored", "summary_error", "not_retrieved"]
+
+
+def collapse_error_type(per_fact_results: list, correctly_invoked) -> str:
+    """Return the single worst error type for a trace, by priority order."""
+    categories = {f.get("category") for f in per_fact_results}
+    for p in ERROR_TYPE_PRIORITY:
+        if p in categories:
+            return p
+    if correctly_invoked is False:
+        return "reasoning_error"
+    return "correct"
 
 
 def format_all_memories(all_memories: list) -> str:
@@ -342,6 +354,7 @@ def analyze_trace(
     result = {k: v for k, v in trace.items() if k != "formatted_prompt"}
     result["per_fact_results"] = []
     result["judge_result"] = None
+    result["error_type"] = None
     result["correctly_invoked"] = None
     result["invocation_reasoning"] = None
     result["analysis_error"] = None
@@ -473,6 +486,8 @@ def analyze_trace(
         else:
             result["judge_result"] = "incorrect"
 
+        result["error_type"] = collapse_error_type(fact_results, result["correctly_invoked"])
+
     except Exception as exc:
         result["analysis_error"] = str(exc)
         result["per_fact_results"] = fact_results
@@ -515,7 +530,27 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
     if total:
         print(f"Correct:              {correct}  ({correct/total:.1%})")
         print(f"Incorrect:            {incorrect}  ({incorrect/total:.1%})")
-        print(f"  of which reasoning_error: {reasoning_errors}  ({reasoning_errors/total:.1%})")
+
+    error_types = ["not_stored", "summary_error", "not_retrieved", "reasoning_error"]
+    type_counts: Dict[str, int] = {et: 0 for et in error_types}
+    type_counts["analysis_failed"] = 0
+    for r in results:
+        if r.get("judge_result") != "incorrect":
+            continue
+        et = r.get("error_type") or "analysis_failed"
+        type_counts[et] = type_counts.get(et, 0) + 1
+
+    if incorrect > 0:
+        print(f"\n{'Error type (of incorrect)':<26} {'Count':>6} {'Share of incorrect':>18}")
+        print("-" * 52)
+        for et in [*error_types, "analysis_failed"]:
+            c = type_counts[et]
+            if c == 0:
+                continue
+            print(f"{et:<26} {c:>6} {c/incorrect:>17.1%}")
+        print("-" * 52)
+        print(f"{'TOTAL INCORRECT':<26} {incorrect:>6}")
+        print(f"  of which reasoning_error: {reasoning_errors}  ({reasoning_errors/total:.1%})" if total else "")
 
     # ── Per-fact category distribution (all facts, all traces) ──────────────
     agg: Dict[str, int] = {c: 0 for c in FACT_CATEGORIES}
@@ -584,7 +619,7 @@ def save_outputs(results: list, output_dir: Path, ts: str):
         json.dump(results, f, indent=2)
 
     fieldnames = [
-        "conversation_id", "judge_result", "correctly_invoked",
+        "conversation_id", "judge_result", "error_type", "correctly_invoked",
         "preference_category", "ground_truth_answer", "question",
         "n_preferences",
         "n_not_stored", "n_summary_error", "n_not_retrieved", "n_correct",

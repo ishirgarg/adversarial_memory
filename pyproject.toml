@@ -17,6 +17,7 @@ dependencies = [
     "mem0ai>=1.0.3",
     "nltk>=3.8",
     "openai>=2.17.0",
+    "pylance>=4.0.1",
     "pytest>=9.0.2",
     "rank-bm25>=0.2.2",
     "requests>=2.32.5",
