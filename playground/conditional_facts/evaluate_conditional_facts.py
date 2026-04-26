@@ -201,6 +201,7 @@ def main() -> None:
         "num_storage_convs": num_storage_convs,
         "num_question_convs": num_question_convs,
         "timestamp": ts,
+        "all_cli_args": {k: v for k, v in vars(args).items() if k != "api_key"},
     }
 
     summary_dict = asdict(summary)

@@ -37,7 +37,7 @@ class ChatSystem:
         return conversation_id
 
     def send_message(
-        self, prompt: Prompt, conversation_id: ConversationID
+        self, prompt: Prompt, conversation_id: ConversationID, raw_query: Prompt | None = None
     ) -> LLMResponse:
         """
         Send a message in a conversation.
@@ -51,7 +51,10 @@ class ChatSystem:
 
         conversation = self._conversations[conversation_id]
         new_message = Message(
-            prompt=prompt, response=response, conversation_id=conversation_id
+            prompt=prompt,
+            raw_query=raw_query if raw_query is not None else prompt,
+            response=response,
+            conversation_id=conversation_id,
         )
         updated_conversation = Conversation(
             conversation_id=conversation_id,

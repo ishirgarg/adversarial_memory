@@ -11,7 +11,7 @@ def format_history(conversation: Conversation) -> str:
     """
     parts = []
     for msg in conversation.messages:
-        parts.append(f"User: {msg.prompt}")
+        parts.append(f"User: {msg.raw_query}")
         parts.append(f"Assistant: {msg.response}")
     return "\n".join(parts)
 

@@ -27,7 +27,9 @@ import csv
 import json
 import os
 import random
+import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -401,7 +403,8 @@ def generate_dataset(
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_rows)
-    print(f"Saved raw ({len(all_rows)} rows): {raw_path}")
+    len_raw = len(all_rows)
+    print(f"Saved raw ({len_raw} rows): {raw_path}")
 
     # Deduplicate on the essay text (entity_facts[0])
     def _essay_key(row: Dict) -> str:
@@ -422,6 +425,39 @@ def generate_dataset(
     all_rows = deduped_rows
     print(f"Saved deduplicated ({len(all_rows)} rows): {output_csv}")
     print(f"Model used: {MODEL_NAME}")
+
+    # Save generation config for reproducibility
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    try:
+        git_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, stderr=subprocess.DEVNULL
+        ).decode().strip()
+        git_dirty = subprocess.call(
+            ["git", "diff", "--quiet"], cwd=PROJECT_ROOT, stderr=subprocess.DEVNULL
+        ) != 0
+    except Exception:
+        git_commit = "unknown"
+        git_dirty = None
+    config = {
+        "timestamp": ts,
+        "git_commit": git_commit,
+        "git_dirty": git_dirty,
+        "model_name": MODEL_NAME,
+        "num_rows_requested": num_rows,
+        "num_rows_raw": len_raw,
+        "num_rows_deduped": len(all_rows),
+        "rows_removed_by_dedup": len_raw - len(all_rows),
+        "batch_size": batch_size,
+        "seed": seed,
+        "dedup_threshold": 0.8,
+        "dedup_key_field": "entity_facts[0] (essay text)",
+        "output_csv": str(output_csv),
+        "raw_csv": str(raw_path),
+    }
+    config_path = output_csv.parent / f"generation_config_{ts}.json"
+    with open(config_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+    print(f"Saved config: {config_path}")
 
     # Condition type distribution
     ctype_counts: Dict[str, int] = {}

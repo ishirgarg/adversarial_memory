@@ -26,7 +26,8 @@ class LLMUsage:
 class Message:
     """Represents a message in a conversation."""
 
-    prompt: Prompt
+    prompt: Prompt           # full formatted prompt (system prompt + memories + history + query)
+    raw_query: Prompt        # raw user query only, used for memory ops and history formatting
     response: LLMResponse
     conversation_id: ConversationID
     timestamp: Optional[float] = None

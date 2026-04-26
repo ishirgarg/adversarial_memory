@@ -130,7 +130,7 @@ class Mem0MemorySystem:
             return
         messages = []
         for msg in conversation.messages:
-            messages.append({"role": "user", "content": msg.prompt})
+            messages.append({"role": "user", "content": msg.raw_query})
             messages.append({"role": "assistant", "content": msg.response})
         self.memory.add(messages, user_id=self._user_id(conversation))
 

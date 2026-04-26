@@ -155,6 +155,7 @@ class Evaluator:
         """
         # Start a new conversation and get its ID
         conv_id = self.chat_system.start_new_conversation()
+        read_only = all(should_grade for _, should_grade in conversation_data.queries)
 
         traces: List[QueryTrace] = []
         queries: List[Prompt] = []
@@ -180,8 +181,10 @@ class Evaluator:
                 raise ValueError(f"Conversation {conv_id} not found")
 
             # ── Retrieval ────────────────────────────────────────────────────
+            # Skip memory retrieval for storage (ungraded) turns — we're writing,
+            # not querying, so injecting retrieved memories would be wasted work.
             retrieval_start = time.time()
-            memories = self.memory_system.get_memories(query, conversation)
+            memories = self.memory_system.get_memories(query, conversation) if should_grade else ""
             retrieval_time = time.time() - retrieval_start
             total_retrieval_time += retrieval_time
 
@@ -194,7 +197,7 @@ class Evaluator:
 
             # ── LLM call ─────────────────────────────────────────────────────
             llm_start = time.time()
-            response = self.chat_system.send_message(prompt, conv_id)
+            response = self.chat_system.send_message(prompt, conv_id, raw_query=query)
             llm_time = time.time() - llm_start
             total_llm_time += llm_time
 
@@ -224,7 +227,8 @@ class Evaluator:
                 graded_cost += cost
 
             # ── Memory update ─────────────────────────────────────────────────
-            self.memory_system.update_memory(query, response, conversation)
+            if not read_only:
+                self.memory_system.update_memory(query, response, conversation)
 
             # ── Record full trace for this turn ───────────────────────────────
             traces.append(
@@ -247,10 +251,11 @@ class Evaluator:
             queries.append(query)
             responses.append(response)
 
-        final_conversation = self.chat_system.get_conversation(conv_id)
-        if final_conversation is None:
-            raise ValueError(f"Conversation {conv_id} not found at finalization")
-        self.memory_system.finalize_conversation(final_conversation)
+        if not read_only:
+            final_conversation = self.chat_system.get_conversation(conv_id)
+            if final_conversation is None:
+                raise ValueError(f"Conversation {conv_id} not found at finalization")
+            self.memory_system.finalize_conversation(final_conversation)
 
         total_time = time.time() - conv_start_time
 

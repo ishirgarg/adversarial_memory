@@ -1,0 +1,16 @@
+{
+  "timestamp": "20260425_190917",
+  "git_commit": "017e43243ed5a57cfe6be88c07bf685ccc6611ea",
+  "git_dirty": true,
+  "model_name": "gpt-4.1-mini",
+  "num_rows_requested": 300,
+  "num_rows_raw": 300,
+  "num_rows_deduped": 300,
+  "rows_removed_by_dedup": 0,
+  "batch_size": 10,
+  "seed": 42,
+  "dedup_threshold": 0.7,
+  "dedup_key_field": "question",
+  "output_csv": "datasets/coexisting_facts/coexisting_facts_dataset.csv",
+  "raw_csv": "datasets/coexisting_facts/coexisting_facts_dataset_raw.csv"
+}
