@@ -2,23 +2,23 @@
 analyze_errors.py -- Grade and classify errors in conditional-facts traces.
 
 Reads the output of evaluate_conditional_facts.py and grades each graded question
-using three focused LLM calls:
+using four focused LLM calls in sequence, short-circuiting on the first failure:
 
-  Call 1 — Grade: correct or incorrect?
-  Call 2 — Retrieval check: was the conditional fact in RETRIEVED_MEMORIES?
-  Call 3 — Error classification (only when incorrect): storage / retrieval / reasoning error?
+  Call 1 — Storage check:  is the fact present in ALL_MEMORIES at all?
+  Call 2 — Summary check:  is the stored version faithful (condition not dropped/corrupted)?
+  Call 3 — Retrieval check: was the fact included in RETRIEVED_MEMORIES?
+  Call 4 — Invocation check: did the model correctly use the fact to answer?
 
-The judge receives:
-  - ALL_MEMORIES: full memory store at the time of the question
-  - RETRIEVED_MEMORIES: the specific memories actually shown to the LLM
-  - Dataset metadata: entity, condition, ground truth, etc.
+Error taxonomy:
+  storage_error   — fact absent from ALL_MEMORIES
+  summary_error   — fact present but critical condition destroyed in summarization
+  retrieval_error — fact stored faithfully but not retrieved
+  reasoning_error — fact retrieved faithfully but model answered incorrectly
 
 Usage:
   uv run python playground/conditional_facts/analyze_errors.py --traces path/to/traces.json
   uv run python playground/conditional_facts/analyze_errors.py  # auto-detects most recent
   uv run python playground/conditional_facts/analyze_errors.py --limit 5
-
-Cost/token metrics for all judge calls are printed in the final summary.
 """
 
 import argparse
@@ -44,11 +44,8 @@ from src.llm import compute_cost  # noqa: E402
 
 load_dotenv(PROJECT_ROOT / ".env")
 
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
-
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
-DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_MODEL = "gpt-4.1-mini"
 DEFAULT_WORKERS = 8
 MAX_RETRIES = 3
 
@@ -56,7 +53,7 @@ MAX_RETRIES = 3
 # Call 1 — Storage check
 # ---------------------------------------------------------------------------
 
-STORAGE_SYSTEM = """You are checking whether a specific fact was correctly stored in a memory system.
+STORAGE_SYSTEM = """You are checking whether a specific fact was stored in a memory system.
 The fact may have been paraphrased or compressed, but must still convey the same
 information — including any qualifying condition — to count as present."""
 
@@ -87,12 +84,59 @@ STORAGE_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Call 2 — Retrieval check
+# Call 2 — Summary check
+# ---------------------------------------------------------------------------
+
+SUMMARY_SYSTEM = """You are assessing the quality of a stored memory.
+
+The fact has already been confirmed to exist in the memory store. Your job is to evaluate
+whether the stored version faithfully preserves the CRITICAL information — specifically the
+qualifying condition and the conditional behavior — in a way that would support correct
+downstream reasoning.
+
+A stored version has a SUMMARY ERROR if ANY of the following apply:
+- The qualifying condition was dropped entirely (stored as an unconditional fact)
+- The condition was generalized in a way that changes the specific threshold or trigger
+  (e.g., "after 5pm" → "in the evening" loses precision; "when raining" → "in bad weather" is too vague)
+- The conditional relationship was inverted, confused, or made ambiguous
+- Critical specifics (time, place, context, trigger) were lost or distorted such that
+  a reader could not reliably determine whether a given scenario satisfies the rule
+
+A stored version is FAITHFUL if the condition is clearly and specifically preserved and
+a reader could correctly answer whether a given context satisfies the rule."""
+
+SUMMARY_USER = """ORIGINAL FACT:
+{original_fact}
+
+ALL_MEMORIES (the fact IS confirmed present somewhere in here):
+{all_memories_formatted}
+
+Find the memory entry corresponding to this fact and assess whether the stored version
+faithfully preserves the qualifying condition and behavior, or whether it has a summary error."""
+
+SUMMARY_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "summary_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "summary_check_passed": {"type": "boolean"},
+                "summary_reasoning": {"type": "string"},
+            },
+            "required": ["summary_check_passed", "summary_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Call 3 — Retrieval check
 # ---------------------------------------------------------------------------
 
 RETRIEVAL_SYSTEM = """You are checking whether a specific fact was included in the memories retrieved and
 shown to an AI model when it answered a question."""
-
 
 RETRIEVAL_USER = """ORIGINAL QUESTION (used to search the memory store):
 {query}
@@ -125,7 +169,7 @@ RETRIEVAL_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Call 3 — Invocation check
+# Call 4 — Invocation check
 # ---------------------------------------------------------------------------
 
 INVOCATION_SYSTEM = """You are checking whether an AI model correctly used a retrieved memory to answer
@@ -175,7 +219,6 @@ def format_all_memories(all_memories: list) -> str:
 
 
 def auto_detect_traces_file(results_dir: Path) -> Path:
-    # Prefer graded_traces_*.json (question-only output), fall back to full traces_*.json
     graded = list(results_dir.glob("graded_traces_*.json")) + list(results_dir.glob("*/graded_traces_*.json"))
     if graded:
         return max(graded, key=lambda p: p.stat().st_mtime)
@@ -190,27 +233,18 @@ def auto_detect_traces_file(results_dir: Path) -> Path:
 
 
 def extract_graded_traces(data: dict) -> Tuple[List[dict], List[dict]]:
-    """Extract graded (question) traces and their matching dataset rows from evaluation output.
-
-    Returns (graded_traces, dataset_rows) aligned by index.
-    Each graded_trace is a flat dict combining QueryTrace fields with the dataset row metadata.
-    """
     num_storage_convs = data["run_metadata"]["num_storage_convs"]
     dataset_rows = data["dataset_rows"]
     results = data["evaluation_summary"]["results"]
-
     question_results = results[num_storage_convs:]
 
     graded = []
     for i, (result, row) in enumerate(zip(question_results, dataset_rows)):
-        # Each question conversation has exactly one trace (grade=True)
         traces = result["traces"]
         if not traces:
             continue
-        trace = traces[0]  # single graded query per question conversation
-
+        trace = traces[0]
         graded.append({
-            # From dataset row
             "entity": row["entity"],
             "entity_category": row["entity_category"],
             "behavior": row["behavior"],
@@ -220,13 +254,11 @@ def extract_graded_traces(data: dict) -> Tuple[List[dict], List[dict]]:
             "question_context": row["question_context"],
             "condition_met": row["condition_met"],
             "ground_truth_answer": row["ground_truth_answer"],
-            # From QueryTrace
             "question": trace["query"],
             "retrieved_memories": trace["retrieved_memories"],
             "llm_response": trace["response"],
             "formatted_prompt": trace["formatted_prompt"],
             "conversation_id": result["conversation_id"],
-            # Input tokens / output tokens / cost for the LLM response turn
             "eval_input_tokens": trace["input_tokens"],
             "eval_output_tokens": trace["output_tokens"],
             "eval_cost": trace["cost"],
@@ -276,15 +308,13 @@ def analyze_trace(
     trace: dict,
     all_memories: list,
 ) -> Tuple[dict, int, int]:
-    """Grade a single trace via a short-circuit pipeline of three binary checks.
+    """Grade a single trace via a short-circuit pipeline of four binary checks.
 
-    Call 1 — Storage:   is the original fact in ALL_MEMORIES?
-                        No  → storage_error, stop.
-    Call 2 — Retrieval: was the fact included in RETRIEVED_MEMORIES?
-                        No  → retrieval_error, stop.
-    Call 3 — Invocation: did the model correctly use the fact to answer?
-                        No  → reasoning_error, stop.
-                        Yes → correct (by elimination).
+    Call 1 — Storage:   is the fact in ALL_MEMORIES?             No  → storage_error.
+    Call 2 — Summary:   is the stored version faithful?          No  → summary_error.
+    Call 3 — Retrieval: was the fact in RETRIEVED_MEMORIES?      No  → retrieval_error.
+    Call 4 — Invocation: did the model answer correctly?         No  → reasoning_error.
+                                                                 Yes → correct.
 
     Returns (result_dict, total_input_tokens, total_output_tokens). Never raises.
     """
@@ -293,6 +323,8 @@ def analyze_trace(
     result["judge_reasoning"] = None
     result["fact_in_store"] = None
     result["storage_reasoning"] = None
+    result["summary_check_passed"] = None
+    result["summary_reasoning"] = None
     result["entity_facts_in_retrieved"] = None
     result["retrieval_reasoning"] = None
     result["correctly_invoked"] = None
@@ -305,6 +337,7 @@ def analyze_trace(
 
     original_fact = (trace.get("entity_facts") or [""])[0]
     retrieved = trace.get("retrieved_memories") or "(none)"
+    all_memories_fmt = format_all_memories(all_memories)
 
     try:
         # ── Call 1: Storage check ────────────────────────────────────────────
@@ -313,7 +346,7 @@ def analyze_trace(
             system=STORAGE_SYSTEM,
             user=STORAGE_USER.format(
                 original_fact=original_fact,
-                all_memories_formatted=format_all_memories(all_memories),
+                all_memories_formatted=all_memories_fmt,
             ),
             schema=STORAGE_SCHEMA,
         )
@@ -328,7 +361,28 @@ def analyze_trace(
             result["judge_reasoning"] = storage_data["storage_reasoning"]
             return result, total_in, total_out
 
-        # ── Call 2: Retrieval check ──────────────────────────────────────────
+        # ── Call 2: Summary check ────────────────────────────────────────────
+        summary_data, in_tok, out_tok = _call(
+            client, model,
+            system=SUMMARY_SYSTEM,
+            user=SUMMARY_USER.format(
+                original_fact=original_fact,
+                all_memories_formatted=all_memories_fmt,
+            ),
+            schema=SUMMARY_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["summary_check_passed"] = summary_data["summary_check_passed"]
+        result["summary_reasoning"] = summary_data["summary_reasoning"]
+
+        if not summary_data["summary_check_passed"]:
+            result["judge_result"] = "incorrect"
+            result["error_type"] = "summary_error"
+            result["judge_reasoning"] = summary_data["summary_reasoning"]
+            return result, total_in, total_out
+
+        # ── Call 3: Retrieval check ──────────────────────────────────────────
         retrieval_data, in_tok, out_tok = _call(
             client, model,
             system=RETRIEVAL_SYSTEM,
@@ -350,7 +404,7 @@ def analyze_trace(
             result["judge_reasoning"] = retrieval_data["retrieval_reasoning"]
             return result, total_in, total_out
 
-        # ── Call 3: Invocation check ─────────────────────────────────────────
+        # ── Call 4: Invocation check ─────────────────────────────────────────
         invocation_data, in_tok, out_tok = _call(
             client, model,
             system=INVOCATION_SYSTEM,
@@ -401,8 +455,7 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
     retrieval_hits = sum(1 for r in results if r.get("entity_facts_in_retrieved"))
     print(f"Retrieval hit rate: {retrieval_hits/total:.1%}" if total else "Retrieval hit rate: N/A")
 
-    # Error type breakdown
-    error_types = ["storage_error", "retrieval_error", "reasoning_error"]
+    error_types = ["storage_error", "summary_error", "retrieval_error", "reasoning_error"]
     counts: Dict[str, int] = {et: 0 for et in error_types}
     counts["analysis_failed"] = 0
     for r in results:
@@ -438,10 +491,11 @@ def save_outputs(results: list, output_dir: Path, ts: str):
 
     fieldnames = [
         "conversation_id", "judge_result", "error_type",
-        "fact_in_store", "entity_facts_in_retrieved", "correctly_invoked",
+        "fact_in_store", "summary_check_passed", "entity_facts_in_retrieved", "correctly_invoked",
         "condition_met", "condition_type", "entity", "condition",
         "ground_truth_answer", "question",
-        "judge_reasoning", "storage_reasoning", "retrieval_reasoning", "invocation_reasoning",
+        "judge_reasoning", "storage_reasoning", "summary_reasoning",
+        "retrieval_reasoning", "invocation_reasoning",
         "eval_input_tokens", "eval_output_tokens", "eval_cost",
     ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -504,8 +558,6 @@ def main() -> None:
 
     all_memories = data["all_memories_at_time_of_questions"]
 
-    # graded_traces_*.json has a flat "graded_traces" list already;
-    # full traces_*.json requires extraction via extract_graded_traces().
     if "graded_traces" in data:
         graded_traces = data["graded_traces"]
     else:
@@ -525,10 +577,6 @@ def main() -> None:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     results: List[Optional[dict]] = [None] * len(graded_traces)
-    judge_input_tokens = 0
-    judge_output_tokens = 0
-
-    # Thread-safe accumulation via a list of (index, input_tokens, output_tokens)
     token_accumulator: List[Tuple[int, int, int]] = []
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
@@ -542,10 +590,8 @@ def main() -> None:
             results[i] = result
             token_accumulator.append((i, in_tok, out_tok))
 
-    for _, in_tok, out_tok in token_accumulator:
-        judge_input_tokens += in_tok
-        judge_output_tokens += out_tok
-
+    judge_input_tokens = sum(t[1] for t in token_accumulator)
+    judge_output_tokens = sum(t[2] for t in token_accumulator)
     judge_cost = compute_cost(args.model, judge_input_tokens, judge_output_tokens)
 
     json_path, csv_path = save_outputs(results, output_dir, ts)

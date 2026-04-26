@@ -247,7 +247,10 @@ class Evaluator:
             queries.append(query)
             responses.append(response)
 
-        self.memory_system.finalize_conversation(conv_id)
+        final_conversation = self.chat_system.get_conversation(conv_id)
+        if final_conversation is None:
+            raise ValueError(f"Conversation {conv_id} not found at finalization")
+        self.memory_system.finalize_conversation(final_conversation)
 
         total_time = time.time() - conv_start_time
 

@@ -22,6 +22,7 @@ import csv
 import json
 import os
 import random
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -34,7 +35,10 @@ BATCH_SIZE = 10
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
+
+from dataset_utils.dedup import deduplicate  # noqa: E402
 
 PREFERENCE_CATEGORIES = [
     "foods",
@@ -232,21 +236,34 @@ def generate_dataset(
         all_rows.extend(batch_rows)
         print(f"  Total rows so far: {len(all_rows)}")
 
+    fieldnames = [
+        "preference_category",
+        "preferences",
+        "preference_facts",
+        "question",
+        "ground_truth_answer",
+    ]
+
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        fieldnames = [
-            "preference_category",
-            "preferences",
-            "preference_facts",
-            "question",
-            "ground_truth_answer",
-        ]
+
+    # Save raw dataset
+    raw_path = output_csv.parent / (output_csv.stem + "_raw" + output_csv.suffix)
+    with open(raw_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_rows)
+    print(f"\nGenerated {len(all_rows)} rows (raw)")
+    print(f"Saved raw: {raw_path}")
 
-    print(f"\nGenerated {len(all_rows)} rows")
+    # Deduplicate on question field
+    deduped_rows = deduplicate(all_rows, key=lambda r: r["question"], threshold=0.8)
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(deduped_rows)
+    print(f"After deduplication: {len(deduped_rows)} rows")
     print(f"Saved: {output_csv}")
+    all_rows = deduped_rows
     print(f"Model used: {MODEL_NAME}")
 
     # Category distribution

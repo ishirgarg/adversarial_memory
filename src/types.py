@@ -105,15 +105,15 @@ class MemorySystem(Protocol):
         """
         ...
 
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+    def finalize_conversation(self, conversation: Conversation) -> None:
         """
         Finalize and consolidate memory at the end of a conversation.
 
-        Called once after all turns in a conversation are complete.
-        Most memory systems can implement this as a no-op.
+        Called once after all turns in a conversation are complete, with the
+        full conversation history. Most memory systems can implement this as a no-op.
 
         Args:
-            conversation_id: The ID of the conversation that ended
+            conversation: The completed conversation, including all turns.
         """
         ...
 

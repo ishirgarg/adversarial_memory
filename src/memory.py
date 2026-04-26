@@ -10,7 +10,7 @@ from typing import Optional
 
 import mem0
 
-from .types import Conversation, ConversationID, LLMResponse, Prompt
+from .types import Conversation, LLMResponse, Prompt
 
 
 class NoHistoryMemorySystem:
@@ -30,7 +30,7 @@ class NoHistoryMemorySystem:
     def get_all_memories(self) -> list[str]:
         return []
 
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+    def finalize_conversation(self, conversation: Conversation) -> None:
         pass
 
 
@@ -65,7 +65,7 @@ class SimpleHistoryMemorySystem:
     def get_all_memories(self) -> list[str]:
         return []
 
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+    def finalize_conversation(self, conversation: Conversation) -> None:
         pass
 
 
@@ -75,6 +75,9 @@ class Mem0MemorySystem:
 
     Uses semantic search to retrieve relevant memories and automatically
     extracts key information from conversations.
+
+    The full conversation is committed to mem0 in one batch at finalize_conversation(),
+    giving the LLM extractor complete context. update_memory() is a no-op.
     """
 
     def __init__(
@@ -120,15 +123,16 @@ class Mem0MemorySystem:
     def update_memory(
         self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
     ) -> None:
-        user_id = self._user_id(conversation_history)
-        messages = [
-            {"role": "user", "content": prompt},
-            {"role": "assistant", "content": response},
-        ]
-        self.memory.add(messages, user_id=user_id)
-
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
         pass
+
+    def finalize_conversation(self, conversation: Conversation) -> None:
+        if not conversation.messages:
+            return
+        messages = []
+        for msg in conversation.messages:
+            messages.append({"role": "user", "content": msg.prompt})
+            messages.append({"role": "assistant", "content": msg.response})
+        self.memory.add(messages, user_id=self._user_id(conversation))
 
     def get_all_memories(self, user_id: str | None = None) -> list[str]:
         if user_id is None:
@@ -197,7 +201,7 @@ class AMEMMemorySystem:
         note_content = f"User: {prompt}\nAssistant: {response}"
         self._memory.add_note(note_content)
 
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+    def finalize_conversation(self, conversation: Conversation) -> None:
         pass
 
     def get_all_memories(self) -> list[str]:
@@ -328,7 +332,7 @@ class SimpleMemMemorySystem:
         self._system.add_dialogue("User", prompt, timestamp)
         self._system.add_dialogue("Assistant", response, timestamp)
 
-    def finalize_conversation(self, conversation_id: ConversationID) -> None:
+    def finalize_conversation(self, conversation: Conversation) -> None:
         self._system.finalize()
 
     def get_all_memories(self) -> list[str]:

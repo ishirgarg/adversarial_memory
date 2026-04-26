@@ -3,10 +3,11 @@ Generate a conditional-facts dataset for testing memory summarization of qualifi
 
 Pipeline:
 1) Generate entities (people, pets, characters) with conditional behaviors
-2) For each entity, produce SHORT natural statements that together encode the conditional fact
-   (each group of statements will be stored together in one conversation)
+2) For each entity, produce a SHORT natural statement encoding the conditional fact
 3) Generate a follow-up question with a specific context that may or may not satisfy the condition
-4) Write output CSV
+4) Wrap each conditional fact in a short essay (3-5 sentences of unconditional context + the fact)
+5) Deduplicate with MinHash LSH (threshold=0.8) on the essay text
+6) Save raw CSV (<name>_raw.csv) and deduplicated CSV (<name>.csv)
 
 CSV columns:
   entity                -- e.g. "Alex"
@@ -14,8 +15,7 @@ CSV columns:
   behavior              -- what they do conditionally, e.g. "drinks coffee"
   condition_type        -- type of condition: time_of_day, weather, mood, social_context, intensity, location
   condition             -- the condition text, e.g. "after 5pm"
-  entity_facts          -- JSON list with exactly 1 natural statement encoding both
-                           the behavior and the condition in a single sentence
+  entity_facts          -- JSON list with exactly 1 essay that embeds the conditional fact
   question              -- follow-up question with a specific context
   question_context      -- the context embedded in the question, e.g. "3 PM"
   condition_met         -- "yes" or "no": is the condition satisfied in the question?
@@ -27,6 +27,7 @@ import csv
 import json
 import os
 import random
+import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -39,7 +40,10 @@ BATCH_SIZE = 10
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
+
+from dataset_utils.dedup import deduplicate  # noqa: E402
 
 ENTITY_CATEGORIES = ["person", "pet", "character"]
 
@@ -240,6 +244,87 @@ def generate_batch(
     raise ValueError(f"Batch generation failed after {MAX_RETRIES} retries: {last_err}")
 
 
+def _make_essay_batch_prompt(items: List[Dict[str, Any]]) -> str:
+    return f"""For each item below, write a short natural paragraph (3-5 sentences) about the entity
+that embeds the conditional fact into a broader, casual narrative.
+
+Rules:
+1. The paragraph MUST preserve the conditional fact clearly — both the behavior AND the
+   condition must be present. Paraphrase is fine; do not omit either part.
+2. All other sentences in the paragraph should describe the entity's background, personality,
+   habits, or context. Every such sentence must be an unconditional, factual statement.
+3. Do NOT introduce any new conditional statements anywhere in the paragraph. Forbidden
+   constructions: "only when", "unless", "except when", "but only if", "whenever X then Y",
+   "only after", "only if", or any other conditional phrasing beyond what was already in the
+   original fact.
+4. The paragraph should feel natural — like an excerpt from a chat conversation or journal
+   entry, not a formal report.
+5. 3-5 sentences total.
+
+Return strict JSON with key "rows", a list of:
+  row_id (int, same as input), essay (string)
+
+Output ONLY valid JSON.
+
+Input:
+{json.dumps(items, ensure_ascii=False)}
+""".strip()
+
+
+def wrap_facts_in_essays(
+    client: OpenAI,
+    rows: List[Dict[str, str]],
+    batch_size: int,
+) -> List[Dict[str, str]]:
+    """Replace entity_facts[0] with a short essay embedding the fact. Returns updated rows."""
+    result = list(rows)
+    num_batches = (len(rows) + batch_size - 1) // batch_size
+
+    for batch_idx in range(num_batches):
+        start = batch_idx * batch_size
+        end = min(start + batch_size, len(rows))
+        batch = rows[start:end]
+
+        items = []
+        for i, row in enumerate(batch):
+            try:
+                fact = json.loads(row["entity_facts"])[0]
+            except Exception:
+                fact = row["entity_facts"]
+            items.append({
+                "row_id": start + i,
+                "entity": row["entity"],
+                "entity_category": row["entity_category"],
+                "conditional_fact": fact,
+            })
+
+        print(f"  Wrapping essays batch {batch_idx + 1}/{num_batches} (rows {start}-{end - 1})...")
+        last_err: Exception | None = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                parsed = _chat_json(client, _make_essay_batch_prompt(items))
+                essay_rows = parsed.get("rows")
+                if not isinstance(essay_rows, list) or len(essay_rows) == 0:
+                    raise ValueError("Response missing 'rows' list or empty.")
+                by_id = {r["row_id"]: r["essay"] for r in essay_rows if isinstance(r.get("row_id"), int)}
+                for item in items:
+                    essay = by_id.get(item["row_id"], "").strip()
+                    if not essay:
+                        raise ValueError(f"row_id {item['row_id']}: empty essay returned.")
+                    result[item["row_id"]] = {
+                        **result[item["row_id"]],
+                        "entity_facts": json.dumps([essay]),
+                    }
+                break
+            except Exception as e:
+                last_err = e
+                print(f"    Essay batch attempt {attempt + 1} failed: {e}")
+        else:
+            raise ValueError(f"Essay batch failed after {MAX_RETRIES} retries: {last_err}")
+
+    return result
+
+
 def build_specs(
     num_rows: int,
     rng: random.Random,
@@ -291,26 +376,51 @@ def generate_dataset(
         all_rows.extend(batch_rows)
         print(f"  Total rows so far: {len(all_rows)}")
 
+    print("Wrapping facts in essays...")
+    all_rows = wrap_facts_in_essays(client, all_rows, batch_size)
+    print("Essay wrapping complete.")
+
+    fieldnames = [
+        "entity",
+        "entity_category",
+        "behavior",
+        "condition_type",
+        "condition",
+        "entity_facts",
+        "question",
+        "question_context",
+        "condition_met",
+        "ground_truth_answer",
+    ]
+
     output_csv.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_csv, "w", newline="", encoding="utf-8") as f:
-        fieldnames = [
-            "entity",
-            "entity_category",
-            "behavior",
-            "condition_type",
-            "condition",
-            "entity_facts",
-            "question",
-            "question_context",
-            "condition_met",
-            "ground_truth_answer",
-        ]
+
+    # Save raw dataset before deduplication
+    raw_path = output_csv.parent / (output_csv.stem + "_raw" + output_csv.suffix)
+    with open(raw_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(all_rows)
+    print(f"Saved raw ({len(all_rows)} rows): {raw_path}")
 
-    print(f"\nGenerated {len(all_rows)} rows")
-    print(f"Saved: {output_csv}")
+    # Deduplicate on the essay text (entity_facts[0])
+    def _essay_key(row: Dict) -> str:
+        try:
+            return json.loads(row["entity_facts"])[0]
+        except Exception:
+            return row.get("entity_facts", "")
+
+    deduped_rows = deduplicate(all_rows, key=_essay_key, threshold=0.8)
+    removed = len(all_rows) - len(deduped_rows)
+    print(f"Deduplication: removed {removed} near-duplicates, kept {len(deduped_rows)} rows.")
+
+    with open(output_csv, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(deduped_rows)
+
+    all_rows = deduped_rows
+    print(f"Saved deduplicated ({len(all_rows)} rows): {output_csv}")
     print(f"Model used: {MODEL_NAME}")
 
     # Condition type distribution
