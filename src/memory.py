@@ -112,8 +112,7 @@ class Mem0MemorySystem:
         self.shared_user_id = shared_user_id
 
         if clear_on_init:
-            self.memory.vector_store.reset()
-            self.memory.db.reset()
+            self.memory.reset()
 
     def _user_id(self, conversation: Conversation) -> str:
         return self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
