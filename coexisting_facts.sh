@@ -72,7 +72,7 @@ NUM_ROWS=200
 # Core eval
 LLM_MODEL="gpt-5-mini"
 NUM_MEMORIES=5
-FACTS_PER_GROUP=5
+FACTS_PER_GROUP=1
 SHARED_USER_ID="coexisting_facts_eval_user"
 COEXIST_IN_SAME_CHAT=false
 

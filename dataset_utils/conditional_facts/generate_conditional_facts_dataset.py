@@ -5,7 +5,7 @@ Pipeline:
 1) Generate entities (people, pets, characters) with conditional behaviors
 2) For each entity, produce a SHORT natural statement encoding the conditional fact
 3) Generate a follow-up question with a specific context that may or may not satisfy the condition
-4) Wrap each conditional fact in a short essay (3-5 sentences of unconditional context + the fact)
+4) Wrap each conditional fact in a longer essay (5-10 sentences of unconditional context + the fact)
 5) Deduplicate with MinHash LSH (threshold=0.8) on the essay text
 6) Save raw CSV (<name>_raw.csv) and deduplicated CSV (<name>.csv)
 
@@ -247,21 +247,24 @@ def generate_batch(
 
 
 def _make_essay_batch_prompt(items: List[Dict[str, Any]]) -> str:
-    return f"""For each item below, write a short natural paragraph (3-5 sentences) about the entity
-that embeds the conditional fact into a broader, casual narrative.
+    return f"""For each item below, write a natural essay (7-10 sentences) about the entity
+that embeds the conditional fact into a rich, casual narrative.
 
 Rules:
-1. The paragraph MUST preserve the conditional fact clearly — both the behavior AND the
+1. The essay MUST preserve the conditional fact clearly — both the behavior AND the
    condition must be present. Paraphrase is fine; do not omit either part.
-2. All other sentences in the paragraph should describe the entity's background, personality,
-   habits, or context. Every such sentence must be an unconditional, factual statement.
-3. Do NOT introduce any new conditional statements anywhere in the paragraph. Forbidden
+2. All other sentences should describe the entity's background, personality, daily routines,
+   relationships, hobbies, quirks, or life context. Every such sentence must be an
+   unconditional, factual statement.
+3. Do NOT introduce any new conditional statements anywhere in the essay. Forbidden
    constructions: "only when", "unless", "except when", "but only if", "whenever X then Y",
    "only after", "only if", or any other conditional phrasing beyond what was already in the
    original fact.
-4. The paragraph should feel natural — like an excerpt from a chat conversation or journal
-   entry, not a formal report.
-5. 3-5 sentences total.
+4. The essay should feel natural — like an excerpt from a chat conversation, personal blog,
+   or journal entry, not a formal report or list.
+5. The conditional fact may appear anywhere in the essay, surrounded by unrelated context
+   before and after it.
+6. 5-10 sentences total.
 
 Return strict JSON with key "rows", a list of:
   row_id (int, same as input), essay (string)

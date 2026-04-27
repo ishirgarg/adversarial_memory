@@ -89,6 +89,7 @@ class Mem0MemorySystem:
         embedding_provider: str | None = None,
         embedding_model: str | None = None,
         ollama_base_url: str | None = None,
+        clear_on_init: bool = True,
     ):
         from mem0.configs.base import MemoryConfig
         from mem0.llms.configs import LlmConfig
@@ -109,6 +110,10 @@ class Mem0MemorySystem:
         self.memory = mem0.Memory(config=MemoryConfig(**config_kwargs))
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id
+
+        if clear_on_init:
+            self.memory.vector_store.reset()
+            self.memory.db.reset()
 
     def _user_id(self, conversation: Conversation) -> str:
         return self.shared_user_id if self.shared_user_id is not None else str(conversation.conversation_id)
