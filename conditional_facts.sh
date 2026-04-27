@@ -69,7 +69,7 @@ SKIP_ANALYSIS=false
 
 # Dataset
 DATASET="datasets/conditional_facts/conditional_facts_dataset.csv"
-NUM_ROWS=200
+NUM_ROWS=100
 SEED=42
 
 # Core eval
