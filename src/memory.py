@@ -138,10 +138,14 @@ class Mem0MemorySystem:
             messages.append({"role": "assistant", "content": msg.response})
         self.memory.add(messages, user_id=self._user_id(conversation))
 
-    def get_all_memories(self, user_id: str | None = None) -> list[str]:
+    def get_all_memories(self, user_id: str | None = None, limit: int = 10000) -> list[str]:
         if user_id is None:
-            user_id = self.shared_user_id or "shared_user"
-        result = self.memory.get_all(user_id=user_id)
+            if self.shared_user_id is None:
+                raise ValueError(
+                    "get_all_memories() requires user_id when shared_user_id is not set"
+                )
+            user_id = self.shared_user_id
+        result = self.memory.get_all(user_id=user_id, limit=limit)
         return [entry["memory"] for entry in result.get("results", [])]
 
 
