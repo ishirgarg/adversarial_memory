@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# main.sh
+# conditional_facts.sh
 #
-# Coexisting-facts end-to-end pipeline:
-#   1. Generate coexisting-facts dataset
+# Conditional-facts end-to-end pipeline:
+#   1. Generate conditional-facts dataset
 #   2. Evaluate mem0, simplemem, amem
 #   3. Grade all three with analyze_errors.py
 #
 # Usage:
-#   ./main.sh [options]
+#   ./conditional_facts.sh [options]
 #
 # Skip flags:
 #   --skip-generate       Skip dataset generation (use existing CSV)
@@ -17,32 +17,32 @@
 #   --skip-analysis       Skip all error analysis steps
 #
 # Core:
-#   --dataset PATH              Path to dataset CSV (default: datasets/coexisting_facts/...)
-#   --num-rows N                Rows to generate before dedup (default: 300)
+#   --dataset PATH              Path to dataset CSV (default: datasets/conditional_facts/...)
+#   --num-rows N                Rows to generate (default: 200)
+#   --seed N                    Random seed for generation (default: 42)
 #   --llm-model MODEL           Test-taker LLM model (default: gpt-5-mini)
 #   --judge-model MODEL         Judge LLM model (default: gpt-5-mini)
 #   --judge-workers N           Parallel judge workers (default: 8)
 #   --num-memories N            Retrieval top-k (default: 5)
-#   --facts-per-group N         Facts per storage conversation (default: 10)
-#   --shared-user-id ID         Shared user-id namespace (default: coexisting_facts_eval_user)
-#   --coexist-in-same-chat      Store all facts from each row in one conversation
+#   --facts-per-group N         Facts per storage conversation (default: 1)
+#   --shared-user-id ID         Shared user-id namespace (default: conditional_facts_eval_user)
 #   --run-id NAME               Unique results subfolder (default: run_<timestamp>).
-#                               Outputs land in playground/coexisting_facts/results/<RUN_ID>/<memory>/
+#                               Outputs land in playground/conditional_facts/results/<RUN_ID>/<memory>/
 #
 # mem0:
 #   --mem0-llm-provider P       (default: openai)
-#   --mem0-llm-model M          (default: gpt-5-mini)
+#   --mem0-llm-model M          (default: gpt-4.1-mini)
 #   --mem0-embedding-provider P (default: none)
 #   --mem0-embedding-model M    (default: none)
 #
 # amem:
 #   --amem-llm-backend B        (default: openai)
-#   --amem-llm-model M          (default: gpt-5-mini)
+#   --amem-llm-model M          (default: gpt-4.1-mini)
 #   --amem-embedding-model M    (default: all-MiniLM-L6-v2)
 #   --amem-evo-threshold N      (default: 100)
 #
 # simplemem:
-#   --simplemem-model M                    (default: gpt-5-mini)
+#   --simplemem-model M                    (default: gpt-4.1-mini)
 #   --simplemem-embedding-model M          (default: all-MiniLM-L6-v2)
 #   --simplemem-embedding-dimension N      (default: 384)
 #   --simplemem-embedding-context-length N (default: 512)
@@ -61,22 +61,22 @@ set -euo pipefail
 # --------------------------------------------------------------------------
 
 # Skip flags
-SKIP_GENERATE=true
+SKIP_GENERATE=false
 SKIP_MEM0=false
 SKIP_SIMPLEMEM=false
 SKIP_AMEM=false
 SKIP_ANALYSIS=false
 
 # Dataset
-DATASET="datasets/coexisting_facts/coexisting_facts_dataset.csv"
+DATASET="datasets/conditional_facts/conditional_facts_dataset.csv"
 NUM_ROWS=200
+SEED=42
 
 # Core eval
 LLM_MODEL="gpt-5-mini"
 NUM_MEMORIES=5
 FACTS_PER_GROUP=1
-SHARED_USER_ID="coexisting_facts_eval_user"
-COEXIST_IN_SAME_CHAT=false
+SHARED_USER_ID="conditional_facts_eval_user"
 RUN_ID=""
 
 # Judge
@@ -123,14 +123,14 @@ while [[ $# -gt 0 ]]; do
         # Dataset / generation
         --dataset)    DATASET="$2";  shift 2 ;;
         --num-rows)   NUM_ROWS="$2"; shift 2 ;;
+        --seed)       SEED="$2";     shift 2 ;;
 
         # Core eval
-        --llm-model)             LLM_MODEL="$2";             shift 2 ;;
-        --num-memories)          NUM_MEMORIES="$2";           shift 2 ;;
-        --facts-per-group)       FACTS_PER_GROUP="$2";        shift 2 ;;
-        --shared-user-id)        SHARED_USER_ID="$2";         shift 2 ;;
-        --coexist-in-same-chat)  COEXIST_IN_SAME_CHAT=true;  shift ;;
-        --run-id)                RUN_ID="$2";                shift 2 ;;
+        --llm-model)       LLM_MODEL="$2";       shift 2 ;;
+        --num-memories)    NUM_MEMORIES="$2";     shift 2 ;;
+        --facts-per-group) FACTS_PER_GROUP="$2";  shift 2 ;;
+        --shared-user-id)  SHARED_USER_ID="$2";   shift 2 ;;
+        --run-id)          RUN_ID="$2";           shift 2 ;;
 
         # Judge
         --judge-model)    JUDGE_MODEL="$2";    shift 2 ;;
@@ -143,10 +143,10 @@ while [[ $# -gt 0 ]]; do
         --mem0-embedding-model)    MEM0_EMBEDDING_MODEL="$2";     shift 2 ;;
 
         # amem
-        --amem-llm-backend)    AMEM_LLM_BACKEND="$2";    shift 2 ;;
-        --amem-llm-model)      AMEM_LLM_MODEL="$2";      shift 2 ;;
+        --amem-llm-backend)     AMEM_LLM_BACKEND="$2";     shift 2 ;;
+        --amem-llm-model)       AMEM_LLM_MODEL="$2";       shift 2 ;;
         --amem-embedding-model) AMEM_EMBEDDING_MODEL="$2"; shift 2 ;;
-        --amem-evo-threshold)  AMEM_EVO_THRESHOLD="$2";  shift 2 ;;
+        --amem-evo-threshold)   AMEM_EVO_THRESHOLD="$2";   shift 2 ;;
 
         # simplemem
         --simplemem-model)                    SIMPLEMEM_MODEL="$2";                    shift 2 ;;
@@ -178,7 +178,7 @@ cd "$SCRIPT_DIR"
 if [ -z "$RUN_ID" ]; then
     RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
 fi
-RESULTS_BASE="playground/coexisting_facts/results/$RUN_ID"
+RESULTS_BASE="playground/conditional_facts/results/$RUN_ID"
 mkdir -p "$RESULTS_BASE"
 
 # Build optional mem0 embedding args (only passed when set)
@@ -190,17 +190,11 @@ if [ -n "$MEM0_EMBEDDING_MODEL" ]; then
     MEM0_EMBEDDING_ARGS="$MEM0_EMBEDDING_ARGS --mem0-embedding-model $MEM0_EMBEDDING_MODEL"
 fi
 
-# Build optional coexist-in-same-chat flag
-COEXIST_ARG=""
-if [ "$COEXIST_IN_SAME_CHAT" = true ]; then
-    COEXIST_ARG="--coexist-in-same-chat"
-fi
-
 GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git diff --quiet 2>/dev/null && echo "clean" || echo "dirty")
 
 echo "============================================================"
-echo "  Coexisting Facts Pipeline"
+echo "  Conditional Facts Pipeline"
 echo "============================================================"
 echo ""
 echo "  --- Git ---"
@@ -215,15 +209,15 @@ echo "  Run analysis:       $([ "$SKIP_ANALYSIS" = false ] && echo yes || echo S
 echo ""
 echo "  --- Dataset generation ---"
 echo "  Output CSV:         $DATASET"
-echo "  Num rows (pre-dedup): $NUM_ROWS"
+echo "  Num rows:           $NUM_ROWS"
 echo "  Batch size:         10"
-echo "  Dedup threshold:    0.8 (MinHash LSH, question field)"
+echo "  Seed:               $SEED"
+echo "  Dedup threshold:    0.8 (MinHash LSH, essay field)"
 echo ""
 echo "  --- Evaluation (shared) ---"
 echo "  LLM model:          $LLM_MODEL"
 echo "  Num memories (top-k): $NUM_MEMORIES"
 echo "  Facts per group:    $FACTS_PER_GROUP"
-echo "  Coexist same chat:  $COEXIST_IN_SAME_CHAT"
 echo "  Shared user ID:     $SHARED_USER_ID"
 echo "  Run ID (output dir): $RESULTS_BASE"
 echo ""
@@ -268,7 +262,7 @@ run_memory_system() {
     echo ""
     echo ">>> Evaluating on $LABEL..."
     # shellcheck disable=SC2086
-    uv run python playground/coexisting_facts/evaluate_coexisting_facts.py \
+    uv run python playground/conditional_facts/evaluate_conditional_facts.py \
         --dataset "$DATASET" \
         --memory "$MEMORY" \
         --output-dir "$RESULTS_BASE" \
@@ -276,7 +270,6 @@ run_memory_system() {
         --num-memories "$NUM_MEMORIES" \
         --facts-per-group "$FACTS_PER_GROUP" \
         --shared-user-id "$SHARED_USER_ID" \
-        $COEXIST_ARG \
         $EXTRA_ARGS
 
     local GRADED_TRACES
@@ -291,7 +284,7 @@ run_memory_system() {
 
     if [ "$SKIP_ANALYSIS" = false ]; then
         echo ">>> Analyzing $LABEL traces..."
-        uv run python playground/coexisting_facts/analyze_errors.py \
+        uv run python playground/conditional_facts/analyze_errors.py \
             --traces "$GRADED_TRACES" \
             --model "$JUDGE_MODEL" \
             --workers "$JUDGE_WORKERS"
@@ -303,9 +296,11 @@ run_memory_system() {
 # --------------------------------------------------------------------------
 if [ "$SKIP_GENERATE" = false ]; then
     echo ""
-    echo ">>> Generating dataset (1 row per category, 100 total)..."
-    uv run python dataset_utils/coexisting_facts/generate_coexisting_facts_dataset.py \
+    echo ">>> Generating dataset ($NUM_ROWS rows)..."
+    uv run python dataset_utils/conditional_facts/generate_conditional_facts_dataset.py \
+        --num-rows "$NUM_ROWS" \
         --batch-size 10 \
+        --seed "$SEED" \
         --output-csv "$DATASET"
     echo ">>> Dataset saved to: $DATASET"
 else

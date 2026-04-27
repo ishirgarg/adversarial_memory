@@ -5,7 +5,7 @@ Pipeline:
 1) Generate entities (people, pets, characters) with conditional behaviors
 2) For each entity, produce a SHORT natural statement encoding the conditional fact
 3) Generate a follow-up question with a specific context that may or may not satisfy the condition
-4) Wrap each conditional fact in a longer essay (5-10 sentences of unconditional context + the fact)
+4) Wrap each conditional fact in a longer essay (5-8 sentences of unconditional context + the fact)
 5) Deduplicate with MinHash LSH (threshold=0.8) on the essay text
 6) Save raw CSV (<name>_raw.csv) and deduplicated CSV (<name>.csv)
 
@@ -264,7 +264,7 @@ Rules:
    or journal entry, not a formal report or list.
 5. The conditional fact may appear anywhere in the essay, surrounded by unrelated context
    before and after it.
-6. 5-10 sentences total.
+6. 5-8 sentences total.
 
 Return strict JSON with key "rows", a list of:
   row_id (int, same as input), essay (string)
