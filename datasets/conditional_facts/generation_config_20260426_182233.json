@@ -1,0 +1,16 @@
+{
+  "timestamp": "20260426_182233",
+  "git_commit": "437d60527dc35dc8bd2c02f7c1b89d566db20d34",
+  "git_dirty": true,
+  "model_name": "gpt-4.1-mini",
+  "num_rows_requested": 100,
+  "num_rows_raw": 100,
+  "num_rows_deduped": 100,
+  "rows_removed_by_dedup": 0,
+  "batch_size": 10,
+  "seed": 42,
+  "dedup_threshold": 0.8,
+  "dedup_key_field": "entity_facts[0] (essay text)",
+  "output_csv": "datasets/conditional_facts/conditional_facts_dataset.csv",
+  "raw_csv": "datasets/conditional_facts/conditional_facts_dataset_raw.csv"
+}

@@ -19,6 +19,7 @@
 # Core:
 #   --dataset PATH              Path to dataset CSV (default: datasets/coexisting_facts/...)
 #   --num-rows N                Rows to generate before dedup (default: 300)
+#   --seed N                    Random seed for shuffling (default: 42)
 #   --llm-model MODEL           Test-taker LLM model (default: gpt-5-mini)
 #   --judge-model MODEL         Judge LLM model (default: gpt-5-mini)
 #   --judge-workers N           Parallel judge workers (default: 8)
@@ -70,6 +71,7 @@ SKIP_ANALYSIS=false
 # Dataset
 DATASET="datasets/coexisting_facts/coexisting_facts_dataset.csv"
 NUM_ROWS=200
+SEED=42
 
 # Core eval
 LLM_MODEL="gpt-5-mini"
@@ -123,6 +125,7 @@ while [[ $# -gt 0 ]]; do
         # Dataset / generation
         --dataset)    DATASET="$2";  shift 2 ;;
         --num-rows)   NUM_ROWS="$2"; shift 2 ;;
+        --seed)       SEED="$2";     shift 2 ;;
 
         # Core eval
         --llm-model)             LLM_MODEL="$2";             shift 2 ;;
@@ -276,6 +279,7 @@ run_memory_system() {
         --num-memories "$NUM_MEMORIES" \
         --facts-per-group "$FACTS_PER_GROUP" \
         --shared-user-id "$SHARED_USER_ID" \
+        --seed "$SEED" \
         $COEXIST_ARG \
         $EXTRA_ARGS
 

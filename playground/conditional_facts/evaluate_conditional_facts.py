@@ -23,6 +23,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import sys
 from dataclasses import asdict
 from datetime import datetime
@@ -98,30 +99,46 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
 
 
 def build_chat_dataset(
-    dataset_rows: List[Dict[str, Any]], facts_per_group: int
-) -> Tuple[ChatDataset, int]:
+    dataset_rows: List[Dict[str, Any]],
+    facts_per_group: int,
+    seed: int = 42,
+) -> Tuple[ChatDataset, int, List[Dict[str, Any]]]:
     """Build a ChatDataset for evaluation.
 
     Storage conversations (grade=False) come first so memory is populated before
     questions are asked. Question conversations (grade=True) follow, one per row.
 
-    Returns (dataset, num_storage_convs).
+    Storage facts and question order are independently shuffled with `seed` so
+    runs are reproducible but not biased by CSV order.
+
+    Returns (dataset, num_storage_convs, question_rows) where `question_rows` is
+    the dataset_rows in the shuffled order used for question conversations — the
+    caller should zip it with question results to merge metadata.
     """
+    rng = random.Random(seed)
     conversations = []
 
-    # Phase 1: Storage conversations — group facts, each group in its own conversation
+    # Phase 1: Storage conversations — shuffle facts, then chunk
     all_facts = [row["entity_facts"][0] for row in dataset_rows]
-    groups = [all_facts[i:i + facts_per_group] for i in range(0, len(all_facts), facts_per_group)]
+    storage_order = list(range(len(all_facts)))
+    rng.shuffle(storage_order)
+    shuffled_facts = [all_facts[i] for i in storage_order]
+    groups = [
+        shuffled_facts[i:i + facts_per_group]
+        for i in range(0, len(shuffled_facts), facts_per_group)
+    ]
     for group in groups:
         conversations.append(ConversationData(queries=[(fact, False) for fact in group]))
     num_storage_convs = len(groups)
 
-    # Phase 2: Question conversations — one graded query per row
-    for row in dataset_rows:
-        question = row["question"]
-        conversations.append(ConversationData(queries=[(question, True)]))
+    # Phase 2: Question conversations — independently shuffled order
+    question_order = list(range(len(dataset_rows)))
+    rng.shuffle(question_order)
+    question_rows = [dataset_rows[i] for i in question_order]
+    for row in question_rows:
+        conversations.append(ConversationData(queries=[(row["question"], True)]))
 
-    return ChatDataset(conversations), num_storage_convs
+    return ChatDataset(conversations), num_storage_convs, question_rows
 
 
 def main() -> None:
@@ -143,7 +160,10 @@ def main() -> None:
         default=DEFAULT_FACTS_PER_GROUP,
         help="Number of facts per storage conversation.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="(unused) Retained for script compatibility.")
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Seed for shuffling storage facts and question order (reproducible across runs).",
+    )
     add_api_key_arg(parser)
     add_memory_system_args(parser)
     args = parser.parse_args()
@@ -168,7 +188,9 @@ def main() -> None:
     dataset_rows = load_dataset(dataset_path)
     print(f"Loaded {len(dataset_rows)} rows.")
 
-    chat_dataset, num_storage_convs = build_chat_dataset(dataset_rows, args.facts_per_group)
+    chat_dataset, num_storage_convs, question_rows = build_chat_dataset(
+        dataset_rows, args.facts_per_group, args.seed
+    )
     num_question_convs = len(dataset_rows)
     print(
         f"Built ChatDataset: {num_storage_convs} storage conversations "
@@ -197,6 +219,7 @@ def main() -> None:
         "num_memories": args.num_memories,
         "facts_per_group": args.facts_per_group,
         "shared_user_id": args.shared_user_id,
+        "seed": args.seed,
         "dataset_path": str(dataset_path),
         "num_storage_convs": num_storage_convs,
         "num_question_convs": num_question_convs,
@@ -222,7 +245,7 @@ def main() -> None:
     # ── Graded traces (question conversations only, dataset metadata merged) ──
     question_results = summary_dict["results"][num_storage_convs:]
     graded_traces = []
-    for result, row in zip(question_results, dataset_rows):
+    for result, row in zip(question_results, question_rows):
         traces = result["traces"]
         if not traces:
             continue

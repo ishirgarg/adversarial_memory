@@ -26,6 +26,7 @@ import argparse
 import csv
 import json
 import os
+import random
 import sys
 from dataclasses import asdict
 from datetime import datetime
@@ -99,50 +100,70 @@ def build_chat_dataset(
     dataset_rows: List[Dict[str, Any]],
     coexist_in_same_chat: bool,
     facts_per_group: int = DEFAULT_FACTS_PER_GROUP,
-) -> Tuple[ChatDataset, int]:
+    seed: int = 42,
+) -> Tuple[ChatDataset, int, List[Dict[str, Any]]]:
     """Build a ChatDataset for evaluation.
 
     Phase 1 (storage, grade=False):
-      coexist_in_same_chat=True  — one conversation per dataset row; all that row's facts
-                                   are fed sequentially in the same chat.
-      coexist_in_same_chat=False — facts are grouped by their position index across rows,
-                                   then batched (facts_per_group per conversation). All
-                                   fact[0]s go into one set of conversations, all fact[1]s
-                                   into another set, etc., ensuring no two coexisting facts
-                                   from the same row ever share a conversation.
+      coexist_in_same_chat=True  — one conversation per dataset row. Row order is shuffled,
+                                   and the facts within each chat are shuffled too. Facts from
+                                   different rows are never mixed into the same chat.
+      coexist_in_same_chat=False — all (row_idx, fact) pairs across the dataset are shuffled
+                                   together, then greedily packed into conversations of
+                                   `facts_per_group` such that no two facts from the same row
+                                   share a conversation. This interleaves coexisting facts
+                                   from different rows in random order.
 
-    Phase 2 (questions, grade=True): one conversation per dataset row.
+    Phase 2 (questions, grade=True): one conversation per dataset row, in shuffled order.
 
-    Returns (dataset, num_storage_convs).
+    Returns (dataset, num_storage_convs, question_rows) where `question_rows` is the
+    dataset_rows in the shuffled order used for question conversations.
     """
+    rng = random.Random(seed)
     conversations = []
 
     if coexist_in_same_chat:
-        # One conversation per row; all facts from that row in sequence
-        for row in dataset_rows:
+        row_order = list(range(len(dataset_rows)))
+        rng.shuffle(row_order)
+        for idx in row_order:
+            row = dataset_rows[idx]
+            facts = list(row["preference_facts"])
+            rng.shuffle(facts)
             conversations.append(
-                ConversationData(queries=[(fact, False) for fact in row["preference_facts"]])
+                ConversationData(queries=[(fact, False) for fact in facts])
             )
     else:
-        # Group facts by position across rows, then batch within each position
-        max_facts = max((len(row["preference_facts"]) for row in dataset_rows), default=0)
-        for fact_idx in range(max_facts):
-            facts_at_pos = [
-                row["preference_facts"][fact_idx]
-                for row in dataset_rows
-                if fact_idx < len(row["preference_facts"])
-            ]
-            for i in range(0, len(facts_at_pos), facts_per_group):
-                group = facts_at_pos[i : i + facts_per_group]
-                conversations.append(ConversationData(queries=[(f, False) for f in group]))
+        # Shuffle all (row_idx, fact) pairs, then greedy-pack into groups of size
+        # facts_per_group with the constraint that no row_idx repeats within a group.
+        pairs = [
+            (row_idx, fact)
+            for row_idx, row in enumerate(dataset_rows)
+            for fact in row["preference_facts"]
+        ]
+        rng.shuffle(pairs)
+
+        groups: List[List[Tuple[int, str]]] = []
+        for row_idx, fact in pairs:
+            for g in groups:
+                if len(g) < facts_per_group and all(ri != row_idx for ri, _ in g):
+                    g.append((row_idx, fact))
+                    break
+            else:
+                groups.append([(row_idx, fact)])
+
+        for group in groups:
+            conversations.append(ConversationData(queries=[(fact, False) for _, fact in group]))
 
     num_storage_convs = len(conversations)
 
-    # Phase 2: question conversations, one per row
-    for row in dataset_rows:
+    # Phase 2: question conversations, one per row, shuffled order
+    question_order = list(range(len(dataset_rows)))
+    rng.shuffle(question_order)
+    question_rows = [dataset_rows[i] for i in question_order]
+    for row in question_rows:
         conversations.append(ConversationData(queries=[(row["question"], True)]))
 
-    return ChatDataset(conversations), num_storage_convs
+    return ChatDataset(conversations), num_storage_convs, question_rows
 
 
 def main() -> None:
@@ -174,7 +195,10 @@ def main() -> None:
         default=DEFAULT_FACTS_PER_GROUP,
         help="(when --coexist-in-same-chat is off) Number of facts per storage conversation.",
     )
-    parser.add_argument("--seed", type=int, default=42, help="(unused) Retained for script compatibility.")
+    parser.add_argument(
+        "--seed", type=int, default=42,
+        help="Seed for shuffling storage facts/rows and question order (reproducible across runs).",
+    )
     add_api_key_arg(parser)
     add_memory_system_args(parser)
     args = parser.parse_args()
@@ -199,8 +223,8 @@ def main() -> None:
     dataset_rows = load_dataset(dataset_path)
     print(f"Loaded {len(dataset_rows)} rows.")
 
-    chat_dataset, num_storage_convs = build_chat_dataset(
-        dataset_rows, args.coexist_in_same_chat, args.facts_per_group
+    chat_dataset, num_storage_convs, question_rows = build_chat_dataset(
+        dataset_rows, args.coexist_in_same_chat, args.facts_per_group, args.seed
     )
     num_question_convs = len(dataset_rows)
     if args.coexist_in_same_chat:
@@ -236,6 +260,7 @@ def main() -> None:
         "llm_model": args.llm_model,
         "num_memories": args.num_memories,
         "shared_user_id": args.shared_user_id,
+        "seed": args.seed,
         "dataset_path": str(dataset_path),
         "coexist_in_same_chat": args.coexist_in_same_chat,
         "facts_per_group": args.facts_per_group if not args.coexist_in_same_chat else None,
@@ -263,7 +288,7 @@ def main() -> None:
     # ── Graded traces (question conversations only, dataset metadata merged) ──
     question_results = summary_dict["results"][num_storage_convs:]
     graded_traces = []
-    for result, row in zip(question_results, dataset_rows):
+    for result, row in zip(question_results, question_rows):
         traces = result["traces"]
         if not traces:
             continue

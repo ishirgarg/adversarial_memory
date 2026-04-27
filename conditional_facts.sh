@@ -270,6 +270,7 @@ run_memory_system() {
         --num-memories "$NUM_MEMORIES" \
         --facts-per-group "$FACTS_PER_GROUP" \
         --shared-user-id "$SHARED_USER_ID" \
+        --seed "$SEED" \
         $EXTRA_ARGS
 
     local GRADED_TRACES
