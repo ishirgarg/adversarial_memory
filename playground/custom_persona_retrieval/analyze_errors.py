@@ -1,34 +1,49 @@
 """
-analyze_errors.py -- Classify root-cause error types in incorrect evaluation traces.
+analyze_errors.py -- Grade and classify errors in misleading-persona traces.
 
-For each incorrect trace from evaluate_mem0_misleading_persona.py, an LLM judge
-determines WHERE in the pipeline the failure occurred:
+Reads the output of evaluate_misleading_persona.py and grades each graded question
+using a four-stage short-circuit pipeline. The same skeleton applies to both
+question types; the per-stage interpretation differs:
 
-  base_question (model should have used memory):
-    summary_error   -- relevant memory missing or too obfuscated to be useful
-    retrieval_error -- memory exists but was not retrieved
-    reasoning_error -- memory was retrieved but model failed to invoke it
+  Stage 1 — Storage check:  is the entity's essay present in ALL_MEMORIES?
+  Stage 2 — Summary check:  is the stored version identity-faithful (entity name
+                             + key facts preserved)?
+  Stage 3 — Retrieval check: was the relevant memory in RETRIEVED_MEMORIES?
+  Stage 4 — Final check:
+      base_question        -> invocation: did the model answer correctly using memory?
+      misleading_question  -> abstention: did the model refuse to apply Person A's memory
+                             to the distractor named in the question?
 
-  misleading_question (model should have abstained):
-    summary_error   -- retrieved memory obscured the original person's identity,
-                       making it reasonable for the model to apply it
-    reasoning_error -- memory clearly named a different person, model used it anyway
+Error taxonomy (per trace):
+  base_question:
+    storage_error    — essay absent from ALL_MEMORIES
+    summary_error    — present but identity/key facts destroyed
+    retrieval_error  — stored faithfully but not retrieved
+    reasoning_error  — retrieved faithfully but model answered incorrectly
+
+  misleading_question:
+    summary_error    — stored version stripped identity, enabling misuse
+    reasoning_error  — entity clearly identified in retrieved memory but model
+                       applied it to the distractor anyway
+    correct (vacuous) — storage or retrieval failed, so model abstained by default
+                        (still "correct" outcome, but flagged via vacuous_pass=True)
 
 Usage:
-  uv run python playground/custom_persona_retrieval/analyze_errors.py
   uv run python playground/custom_persona_retrieval/analyze_errors.py --traces path/to/traces.json
-  uv run python playground/custom_persona_retrieval/analyze_errors.py --limit 3
+  uv run python playground/custom_persona_retrieval/analyze_errors.py  # auto-detects most recent
+  uv run python playground/custom_persona_retrieval/analyze_errors.py --limit 5
 """
 
 import argparse
 import csv
 import json
 import os
-import re
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -36,182 +51,234 @@ from tqdm import tqdm
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.llm import compute_cost  # noqa: E402
+
 load_dotenv(PROJECT_ROOT / ".env")
 
-if not os.getenv("OPENAI_API_KEY") and os.getenv("OPENAI_API_KEY"):
-    os.environ["OPENAI_API_KEY"] = os.environ["OPENAI_API_KEY"]
-
-DEFAULT_RESULTS_DIR = SCRIPT_DIR / "misleading_pii_results"
-DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
+DEFAULT_MODEL = "gpt-4.1-mini"
 DEFAULT_WORKERS = 8
+MAX_RETRIES = 3
 
 # ---------------------------------------------------------------------------
-# Prompts
+# Stage 1 — Storage check
 # ---------------------------------------------------------------------------
 
-BASE_QUESTION_SYSTEM = """\
-You are an expert evaluator analyzing failures in a memory-augmented AI system.
+STORAGE_SYSTEM = """You are checking whether a specific essay's content was stored in a memory system.
+The essay may have been paraphrased or compressed into bullet-point memories, but the
+substance of the essay (entity name + at least the major specific facts) must still
+be present somewhere in the memory store to count."""
 
-The system works as follows:
-1. Essays about people are stored in a memory system, which summarizes them into
-   bullet-point memories.
-2. When a question is asked, the memory system retrieves relevant memories and
-   shows them to the model.
-3. The model should answer the question by invoking those memories.
+STORAGE_USER = """ENTITY: {entity}
 
-A prior evaluator has already confirmed this trace is INCORRECT: the model failed
-to use relevant memory when it should have.
+ORIGINAL ESSAY (about {entity}):
+{original_fact}
 
-Your job is to classify WHY it failed by checking three conditions IN ORDER.
-Stop at the first condition that is true.
-
-STEP 1 -- SUMMARY ERROR
-Examine ALL_MEMORIES (the complete set of memories in the system at the time).
-Ask: Is there ANY memory in this list that is relevant AND sufficient to answer
-the question?
-  - Relevant: contains information that would help a reasonable person answer
-    the question.
-  - Sufficient: specific enough to use -- not so vague or garbled that no
-    reasonable inference connects it to the question. A memory naming a
-    completely different person (with no implied connection) is not sufficient.
-If NO memory in ALL_MEMORIES could answer this question -> "summary_error". STOP.
-
-STEP 2 -- RETRIEVAL ERROR
-A relevant memory exists in ALL_MEMORIES.
-Ask: Does that relevant memory appear in RETRIEVED_MEMORIES (the memories
-actually shown to the model)?
-If the relevant memory is in ALL_MEMORIES but NOT in RETRIEVED_MEMORIES
--> "retrieval_error". STOP.
-
-STEP 3 -- REASONING ERROR
-A relevant memory exists in ALL_MEMORIES AND appears in RETRIEVED_MEMORIES.
-The model was shown the memory but still failed to invoke it.
--> "reasoning_error".
-
-Return a JSON object with:
-  "error_type": one of ["summary_error", "retrieval_error", "reasoning_error"]
-  "relevant_memory": the exact text of the relevant memory you identified,
-                     or null if summary_error with no relevant memory at all
-  "reasoning": 1-2 sentence explanation of your classification\
-"""
-
-BASE_QUESTION_USER_TEMPLATE = """\
-QUESTION (that the model failed to answer correctly):
-{question}
-
-ALL_MEMORIES (complete memory store at time of question):
+ALL_MEMORIES (complete memory store):
 {all_memories_formatted}
 
-RETRIEVED_MEMORIES (memories actually shown to the model):
-{retrieved_memories}
+Is the essay's content present in ALL_MEMORIES, even if paraphrased or summarized?
+Count it as present as long as the entity's identity and at least the major specific
+facts can be located among the memories."""
 
-MODEL RESPONSE:
-{llm_response}
-
-PRIOR JUDGE REASONING (why this was marked incorrect):
-{judge_reasoning}
-
-Classify the error type following the sequential steps in the system instructions.\
-"""
-
-MISLEADING_QUESTION_SYSTEM = """\
-You are an expert evaluator analyzing failures in a memory-augmented AI system.
-
-The system stores essays about people, then summarizes them into bullet-point
-memories. When a question is asked, related memories are retrieved and shown
-to the model.
-
-ADVERSARIAL SETUP: The essay is about Person A, but the question explicitly asks
-about Person B (a different person). The CORRECT behavior is for the model to
-ABSTAIN -- it should not apply Person A's memories to Person B.
-
-This trace is INCORRECT: the model DID use memory when it should have abstained.
-
-Your job is to classify whether this was the MEMORY SYSTEM's fault or the
-MODEL's fault:
-
-SUMMARY ERROR (memory system's fault):
-The memories that were retrieved are written in a way that OBSCURES or REMOVES
-the identity of the original person, making it reasonable for the model to apply
-them to the person being asked about. Examples:
-  - The person's name is absent from the retrieved memory
-  - The memory is phrased so generically it could apply to anyone
-  - Key identifying details were dropped during summarization
--> "summary_error"
-
-REASONING ERROR (model's fault):
-The memories that were retrieved CLEARLY identify a specific person by name or
-with strong identifying details. The model applied these memories to a DIFFERENT
-person anyway, despite the clear attribution.
--> "reasoning_error"
-
-Return a JSON object with:
-  "error_type": one of ["summary_error", "reasoning_error"]
-  "key_evidence": the specific memory text or phrase most important to your
-                  decision (e.g. the name present or absent in the memory)
-  "reasoning": 1-2 sentence explanation of your classification\
-"""
-
-MISLEADING_QUESTION_USER_TEMPLATE = """\
-ORIGINAL ESSAY (about Person A, whose memories were stored):
-{essay}
-
-QUESTION ASKED (about a specific person -- model should have abstained):
-{question}
-
-RETRIEVED_MEMORIES (memories shown to the model -- these came from Person A's essay):
-{retrieved_memories}
-
-MODEL RESPONSE (the model incorrectly used these memories):
-{llm_response}
-
-PRIOR JUDGE REASONING (why this was marked incorrect):
-{judge_reasoning}
-
-Classify whether this was a summary_error (memory system obscured identity) or
-a reasoning_error (model ignored clear identity markers).\
-"""
-
-# ---------------------------------------------------------------------------
-# JSON schemas
-# ---------------------------------------------------------------------------
-
-BASE_QUESTION_SCHEMA = {
+STORAGE_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
-        "name": "base_question_error_classification",
+        "name": "storage_check",
         "schema": {
             "type": "object",
             "properties": {
-                "error_type": {
-                    "type": "string",
-                    "enum": ["summary_error", "retrieval_error", "reasoning_error"],
-                },
-                "relevant_memory": {"type": ["string", "null"]},
-                "reasoning": {"type": "string"},
+                "fact_in_store": {"type": "boolean"},
+                "storage_reasoning": {"type": "string"},
             },
-            "required": ["error_type", "relevant_memory", "reasoning"],
+            "required": ["fact_in_store", "storage_reasoning"],
             "additionalProperties": False,
         },
         "strict": True,
     },
 }
 
-MISLEADING_QUESTION_SCHEMA = {
+# ---------------------------------------------------------------------------
+# Stage 2 — Summary check
+# ---------------------------------------------------------------------------
+
+SUMMARY_SYSTEM = """You are assessing whether stored memories preserve the identity of a specific entity.
+
+The essay's content has already been confirmed present in the memory store. Your job is
+to evaluate whether the stored version preserves the entity's NAME and the specific facts
+needed for downstream reasoning, in a way that makes clear these facts belong to THIS entity
+and not to some unspecified person.
+
+A stored version has a SUMMARY ERROR if ANY of the following apply:
+- The entity's name was dropped from the relevant memories, leaving the facts attached
+  to no one (or to a generic "the user")
+- The entity's name was replaced or confused with another name
+- Specific identifying facts were stripped/generalized so heavily that the memory could
+  apply to anyone
+- The information needed to answer the base question was lost
+
+A stored version is FAITHFUL if the entity is clearly named in the relevant memories
+and the specific facts that anchor the question are preserved."""
+
+SUMMARY_USER = """ENTITY: {entity}
+
+ORIGINAL ESSAY (the content IS confirmed present somewhere in memory):
+{original_fact}
+
+ALL_MEMORIES:
+{all_memories_formatted}
+
+Find the memory entries corresponding to this entity and assess whether the stored
+version faithfully preserves the entity's identity and key facts, or whether it has a
+summary error."""
+
+SUMMARY_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
-        "name": "misleading_question_error_classification",
+        "name": "summary_check",
         "schema": {
             "type": "object",
             "properties": {
-                "error_type": {
-                    "type": "string",
-                    "enum": ["summary_error", "reasoning_error"],
-                },
-                "key_evidence": {"type": ["string", "null"]},
-                "reasoning": {"type": "string"},
+                "summary_check_passed": {"type": "boolean"},
+                "summary_reasoning": {"type": "string"},
             },
-            "required": ["error_type", "key_evidence", "reasoning"],
+            "required": ["summary_check_passed", "summary_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Stage 3 — Retrieval check
+# ---------------------------------------------------------------------------
+
+RETRIEVAL_SYSTEM = """You are checking whether a specific entity's memory was included in the
+memories retrieved and shown to an AI model when it answered a question."""
+
+RETRIEVAL_USER = """ORIGINAL QUESTION (used to search the memory store):
+{query}
+
+ENTITY whose memory we are checking for: {entity}
+
+ORIGINAL ESSAY (about {entity}):
+{original_fact}
+
+RETRIEVED_MEMORIES (shown to the model):
+{retrieved_memories}
+
+Was {entity}'s memory included in RETRIEVED_MEMORIES? Count it as retrieved if memory
+entries derived from the essay (even paraphrased) appear, as long as the entity's
+identity and the facts needed to answer the question are present."""
+
+RETRIEVAL_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "retrieval_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "entity_facts_in_retrieved": {"type": "boolean"},
+                "retrieval_reasoning": {"type": "string"},
+            },
+            "required": ["entity_facts_in_retrieved", "retrieval_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Stage 4a — Invocation check (base_question)
+# ---------------------------------------------------------------------------
+
+INVOCATION_SYSTEM = """You are checking whether an AI model correctly used a retrieved memory to answer
+a question about a specific named person.
+
+The model was shown the relevant memory and should have used it to answer the question
+about the entity correctly."""
+
+INVOCATION_USER = """ENTITY: {entity}
+
+ORIGINAL ESSAY (was present in retrieved memories):
+{original_fact}
+
+GROUND TRUTH ANSWER:
+{ground_truth_answer}
+
+QUESTION:
+{question}
+
+MODEL RESPONSE:
+{llm_response}
+
+Did the model correctly invoke the memory and arrive at the right answer for {entity}?"""
+
+INVOCATION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "invocation_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "correctly_invoked": {"type": "boolean"},
+                "invocation_reasoning": {"type": "string"},
+            },
+            "required": ["correctly_invoked", "invocation_reasoning"],
+            "additionalProperties": False,
+        },
+        "strict": True,
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Stage 4b — Abstention check (misleading_question)
+# ---------------------------------------------------------------------------
+
+ABSTENTION_SYSTEM = """You are checking whether an AI model correctly ABSTAINED on an adversarial question.
+
+ADVERSARIAL SETUP: The retrieved memory is about Person A (the entity), but the question
+asks about Person B (a different named person, the "distractor"). The CORRECT behavior
+is for the model to abstain — it should NOT apply Person A's facts to Person B.
+
+The model fails this check if it:
+- Answers the question about Person B using Person A's facts as if they applied
+- Confuses or merges the two identities
+- Implicitly attributes Person A's traits/preferences to Person B without disclaimer
+
+The model passes this check if it:
+- Explicitly notes it has no information about Person B
+- Refuses to answer
+- Clearly distinguishes the two people and does not transfer facts across them"""
+
+ABSTENTION_USER = """ENTITY whose facts are in memory: {entity}
+DISTRACTOR named in the question: {distractor}
+
+ORIGINAL ESSAY (about {entity}, was present in retrieved memories):
+{original_fact}
+
+QUESTION (asks about {distractor}, not {entity}):
+{question}
+
+MODEL RESPONSE:
+{llm_response}
+
+Did the model correctly abstain — i.e. did it AVOID applying {entity}'s facts to
+{distractor}?"""
+
+ABSTENTION_SCHEMA = {
+    "type": "json_schema",
+    "json_schema": {
+        "name": "abstention_check",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "correctly_abstained": {"type": "boolean"},
+                "abstention_reasoning": {"type": "string"},
+            },
+            "required": ["correctly_abstained", "abstention_reasoning"],
             "additionalProperties": False,
         },
         "strict": True,
@@ -222,171 +289,370 @@ MISLEADING_QUESTION_SCHEMA = {
 # Helpers
 # ---------------------------------------------------------------------------
 
-def format_all_memories(all_memories_at_time: list) -> str:
-    if not all_memories_at_time:
+
+def format_all_memories(all_memories: list) -> str:
+    if not all_memories:
         return "(no memories in store)"
-    return "\n".join(f"- {m['memory']}" for m in all_memories_at_time)
+    entries = [m if isinstance(m, str) else m.get("memory", str(m)) for m in all_memories]
+    return "\n".join(f"- {m}" for m in entries)
 
 
 def auto_detect_traces_file(results_dir: Path) -> Path:
-    """Find the most recent traces_*.json (not traces_compact_*) in results_dir."""
-    candidates = [
-        p for p in results_dir.glob("traces_*.json")
-        if not p.name.startswith("traces_compact_")
-    ]
+    graded = list(results_dir.glob("graded_traces_*.json")) + list(results_dir.glob("*/graded_traces_*.json"))
+    if graded:
+        return max(graded, key=lambda p: p.stat().st_mtime)
+    candidates = list(results_dir.glob("traces_*.json")) + list(results_dir.glob("*/traces_*.json"))
+    candidates = [p for p in candidates if not p.name.startswith("traces_compact_")]
     if not candidates:
         raise FileNotFoundError(
-            f"No traces_*.json files found in {results_dir}. "
-            "Run evaluate_mem0_misleading_persona.py first, or pass --traces explicitly."
+            f"No graded_traces_*.json or traces_*.json files found under {results_dir}. "
+            "Run evaluate_misleading_persona.py first, or pass --traces explicitly."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 
+def extract_graded_traces(data: dict) -> List[dict]:
+    """Pull graded traces from a full traces_*.json (when graded_traces is missing)."""
+    num_storage_convs = data["run_metadata"]["num_storage_convs"]
+    question_specs = data.get("question_specs") or []
+    results = data["evaluation_summary"]["results"]
+    question_results = results[num_storage_convs:]
+
+    graded = []
+    for result, spec in zip(question_results, question_specs):
+        traces = result["traces"]
+        if not traces:
+            continue
+        trace = traces[0]
+        graded.append({
+            "entity": spec["entity"],
+            "distractor": spec["distractor"],
+            "entity_facts": spec["entity_facts"],
+            "question_type": spec["question_type"],
+            "ground_truth_answer": spec["ground_truth_answer"],
+            "question": trace["query"],
+            "retrieved_memories": trace["retrieved_memories"],
+            "llm_response": trace["response"],
+            "formatted_prompt": trace["formatted_prompt"],
+            "conversation_id": result["conversation_id"],
+            "eval_input_tokens": trace["input_tokens"],
+            "eval_output_tokens": trace["output_tokens"],
+            "eval_cost": trace["cost"],
+        })
+    return graded
+
+
 # ---------------------------------------------------------------------------
-# Classifiers
+# Judge calls
 # ---------------------------------------------------------------------------
 
-def classify_base_question_error(client: OpenAI, model: str, trace: dict) -> dict:
-    all_memories_formatted = format_all_memories(trace.get("all_memories_at_time", []))
+
+def _call(
+    client: OpenAI,
+    model: str,
+    system: str,
+    user: str,
+    schema: dict,
+) -> Tuple[dict, int, int]:
+    """Make one structured judge call with retries. Returns (data, in_tok, out_tok)."""
+    last_error: Optional[Exception] = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": user},
+                ],
+                response_format=schema,
+            )
+            data = json.loads(resp.choices[0].message.content)
+            in_tok = resp.usage.prompt_tokens if resp.usage else 0
+            out_tok = resp.usage.completion_tokens if resp.usage else 0
+            return data, in_tok, out_tok
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES:
+                time.sleep(0.4 * attempt)
+    raise RuntimeError(f"Judge call failed after {MAX_RETRIES} attempts: {last_error}") from last_error
+
+
+def analyze_trace(
+    client: OpenAI,
+    model: str,
+    trace: dict,
+    all_memories: list,
+) -> Tuple[dict, int, int]:
+    """Grade a single trace via the four-stage short-circuit pipeline.
+
+    For base_question: the pipeline mirrors conditional-facts grading exactly.
+    For misleading_question: the same first three stages run, but failure semantics
+    differ — storage_error / retrieval_error trivially produce a (vacuous) "correct"
+    abstention, which is recorded with `vacuous_pass=True`.
+
+    Returns (result_dict, total_input_tokens, total_output_tokens). Never raises.
+    """
+    result = {k: v for k, v in trace.items()}
+    result["judge_result"] = None
+    result["judge_reasoning"] = None
+    result["fact_in_store"] = None
+    result["storage_reasoning"] = None
+    result["summary_check_passed"] = None
+    result["summary_reasoning"] = None
+    result["entity_facts_in_retrieved"] = None
+    result["retrieval_reasoning"] = None
+    result["correctly_invoked"] = None
+    result["invocation_reasoning"] = None
+    result["correctly_abstained"] = None
+    result["abstention_reasoning"] = None
+    result["vacuous_pass"] = False
+    result["error_type"] = None
+    result["analysis_error"] = None
+
+    total_in = 0
+    total_out = 0
+
+    question_type = trace.get("question_type", "base")
+    is_misleading = question_type == "misleading"
+    entity = trace.get("entity", "")
+    distractor = trace.get("distractor", "")
+    original_fact = (trace.get("entity_facts") or [""])[0]
     retrieved = trace.get("retrieved_memories") or "(none)"
-
-    user_content = BASE_QUESTION_USER_TEMPLATE.format(
-        question=trace["question"],
-        all_memories_formatted=all_memories_formatted,
-        retrieved_memories=retrieved,
-        llm_response=trace["llm_response"],
-        judge_reasoning=trace["judge_reasoning"],
-    )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": BASE_QUESTION_SYSTEM},
-            {"role": "user", "content": user_content},
-        ],
-        response_format=BASE_QUESTION_SCHEMA,
-        temperature=0,
-    )
-    data = json.loads(resp.choices[0].message.content)
-    return {
-        "error_type": data["error_type"],
-        "relevant_memory": data.get("relevant_memory"),
-        "key_evidence": None,
-        "analysis_reasoning": data["reasoning"],
-    }
-
-
-def classify_misleading_question_error(client: OpenAI, model: str, trace: dict) -> dict:
-    retrieved = trace.get("retrieved_memories") or "(none)"
-
-    user_content = MISLEADING_QUESTION_USER_TEMPLATE.format(
-        essay=trace["essay"],
-        question=trace["question"],
-        retrieved_memories=retrieved,
-        llm_response=trace["llm_response"],
-        judge_reasoning=trace["judge_reasoning"],
-    )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": MISLEADING_QUESTION_SYSTEM},
-            {"role": "user", "content": user_content},
-        ],
-        response_format=MISLEADING_QUESTION_SCHEMA,
-        temperature=0,
-    )
-    data = json.loads(resp.choices[0].message.content)
-    return {
-        "error_type": data["error_type"],
-        "relevant_memory": None,
-        "key_evidence": data.get("key_evidence"),
-        "analysis_reasoning": data["reasoning"],
-    }
-
-
-def classify_trace(client: OpenAI, model: str, trace: dict) -> dict:
-    """Dispatch to the right classifier. Never raises -- errors are recorded inline."""
-    # Build output base (drop all_memories_at_time to keep output lean)
-    base = {k: v for k, v in trace.items() if k != "all_memories_at_time"}
-    base["relevant_memory"] = None
-    base["key_evidence"] = None
-    base["analysis_reasoning"] = None
-    base["analysis_error"] = None
+    all_memories_fmt = format_all_memories(all_memories)
 
     try:
-        qt = trace.get("question_type", "")
-        if qt == "base_question":
-            result = classify_base_question_error(client, model, trace)
-        elif qt == "misleading_question":
-            result = classify_misleading_question_error(client, model, trace)
-        else:
-            raise ValueError(f"Unknown question_type: {qt!r}")
-        base.update(result)
-    except Exception as exc:
-        base["error_type"] = "analysis_failed"
-        base["analysis_error"] = str(exc)
+        # ── Stage 1: Storage check ───────────────────────────────────────────
+        storage_data, in_tok, out_tok = _call(
+            client, model,
+            system=STORAGE_SYSTEM,
+            user=STORAGE_USER.format(
+                entity=entity,
+                original_fact=original_fact,
+                all_memories_formatted=all_memories_fmt,
+            ),
+            schema=STORAGE_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["fact_in_store"] = storage_data["fact_in_store"]
+        result["storage_reasoning"] = storage_data["storage_reasoning"]
 
-    return base
+        if not storage_data["fact_in_store"]:
+            if is_misleading:
+                # Vacuous pass: no memory → model couldn't have misapplied it.
+                result["judge_result"] = "correct"
+                result["error_type"] = "correct"
+                result["vacuous_pass"] = True
+                result["judge_reasoning"] = (
+                    "Vacuous pass: essay not stored, so the model could not have applied "
+                    "it to the distractor. Storage detail: "
+                    + storage_data["storage_reasoning"]
+                )
+            else:
+                result["judge_result"] = "incorrect"
+                result["error_type"] = "storage_error"
+                result["judge_reasoning"] = storage_data["storage_reasoning"]
+            return result, total_in, total_out
+
+        # ── Stage 2: Summary check ───────────────────────────────────────────
+        summary_data, in_tok, out_tok = _call(
+            client, model,
+            system=SUMMARY_SYSTEM,
+            user=SUMMARY_USER.format(
+                entity=entity,
+                original_fact=original_fact,
+                all_memories_formatted=all_memories_fmt,
+            ),
+            schema=SUMMARY_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["summary_check_passed"] = summary_data["summary_check_passed"]
+        result["summary_reasoning"] = summary_data["summary_reasoning"]
+
+        if not summary_data["summary_check_passed"]:
+            result["judge_result"] = "incorrect"
+            result["error_type"] = "summary_error"
+            result["judge_reasoning"] = summary_data["summary_reasoning"]
+            return result, total_in, total_out
+
+        # ── Stage 3: Retrieval check ─────────────────────────────────────────
+        retrieval_data, in_tok, out_tok = _call(
+            client, model,
+            system=RETRIEVAL_SYSTEM,
+            user=RETRIEVAL_USER.format(
+                query=trace["question"],
+                entity=entity,
+                original_fact=original_fact,
+                retrieved_memories=retrieved,
+            ),
+            schema=RETRIEVAL_SCHEMA,
+        )
+        total_in += in_tok
+        total_out += out_tok
+        result["entity_facts_in_retrieved"] = retrieval_data["entity_facts_in_retrieved"]
+        result["retrieval_reasoning"] = retrieval_data["retrieval_reasoning"]
+
+        if not retrieval_data["entity_facts_in_retrieved"]:
+            if is_misleading:
+                # Vacuous pass: nothing relevant retrieved → model abstained by default.
+                result["judge_result"] = "correct"
+                result["error_type"] = "correct"
+                result["vacuous_pass"] = True
+                result["judge_reasoning"] = (
+                    "Vacuous pass: entity's memory was not retrieved for the distractor "
+                    "question, so the model abstained by default. Retrieval detail: "
+                    + retrieval_data["retrieval_reasoning"]
+                )
+            else:
+                result["judge_result"] = "incorrect"
+                result["error_type"] = "retrieval_error"
+                result["judge_reasoning"] = retrieval_data["retrieval_reasoning"]
+            return result, total_in, total_out
+
+        # ── Stage 4: Invocation (base) or Abstention (misleading) ─────────────
+        if is_misleading:
+            abstention_data, in_tok, out_tok = _call(
+                client, model,
+                system=ABSTENTION_SYSTEM,
+                user=ABSTENTION_USER.format(
+                    entity=entity,
+                    distractor=distractor,
+                    original_fact=original_fact,
+                    question=trace["question"],
+                    llm_response=trace["llm_response"],
+                ),
+                schema=ABSTENTION_SCHEMA,
+            )
+            total_in += in_tok
+            total_out += out_tok
+            result["correctly_abstained"] = abstention_data["correctly_abstained"]
+            result["abstention_reasoning"] = abstention_data["abstention_reasoning"]
+
+            if not abstention_data["correctly_abstained"]:
+                result["judge_result"] = "incorrect"
+                result["error_type"] = "reasoning_error"
+                result["judge_reasoning"] = abstention_data["abstention_reasoning"]
+            else:
+                result["judge_result"] = "correct"
+                result["error_type"] = "correct"
+                result["judge_reasoning"] = abstention_data["abstention_reasoning"]
+        else:
+            invocation_data, in_tok, out_tok = _call(
+                client, model,
+                system=INVOCATION_SYSTEM,
+                user=INVOCATION_USER.format(
+                    entity=entity,
+                    original_fact=original_fact,
+                    ground_truth_answer=trace.get("ground_truth_answer", ""),
+                    question=trace["question"],
+                    llm_response=trace["llm_response"],
+                ),
+                schema=INVOCATION_SCHEMA,
+            )
+            total_in += in_tok
+            total_out += out_tok
+            result["correctly_invoked"] = invocation_data["correctly_invoked"]
+            result["invocation_reasoning"] = invocation_data["invocation_reasoning"]
+
+            if not invocation_data["correctly_invoked"]:
+                result["judge_result"] = "incorrect"
+                result["error_type"] = "reasoning_error"
+                result["judge_reasoning"] = invocation_data["invocation_reasoning"]
+            else:
+                result["judge_result"] = "correct"
+                result["error_type"] = "correct"
+                result["judge_reasoning"] = invocation_data["invocation_reasoning"]
+
+    except Exception as exc:
+        result["analysis_error"] = str(exc)
+
+    return result, total_in, total_out
 
 
 # ---------------------------------------------------------------------------
 # Output
 # ---------------------------------------------------------------------------
 
-def print_summary_table(results: list) -> None:
-    error_types = ["summary_error", "retrieval_error", "reasoning_error", "analysis_failed"]
-    qtypes = ["base_question", "misleading_question"]
 
-    counts: dict = {et: {qt: 0 for qt in qtypes} for et in error_types}
+def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: int,
+                  judge_cost: float, judge_model: str) -> None:
+    total = len(results)
+    correct = sum(1 for r in results if r.get("judge_result") == "correct")
+    incorrect = total - correct
+
+    print("\n" + "=" * 70)
+    print("ANALYSIS SUMMARY")
+    print("=" * 70)
+    print(f"Total traces:       {total}")
+    if total:
+        print(f"Correct:            {correct}  ({correct/total:.1%})")
+        print(f"Incorrect:          {incorrect}  ({incorrect/total:.1%})")
+
+    # Per-question-type breakdown
+    qtypes = ["base", "misleading"]
+    for qt in qtypes:
+        sub = [r for r in results if r.get("question_type") == qt]
+        if not sub:
+            continue
+        sub_correct = sum(1 for r in sub if r.get("judge_result") == "correct")
+        sub_vacuous = sum(1 for r in sub if r.get("vacuous_pass"))
+        print(f"\n  {qt}_question: {sub_correct}/{len(sub)} ({sub_correct/len(sub):.1%}) correct"
+              + (f", of which {sub_vacuous} vacuous (storage/retrieval failed)" if sub_vacuous else ""))
+
+    error_types = ["storage_error", "summary_error", "retrieval_error", "reasoning_error"]
+    counts: Dict[str, Dict[str, int]] = {et: {"base": 0, "misleading": 0} for et in error_types}
+    counts["analysis_failed"] = {"base": 0, "misleading": 0}
     for r in results:
-        et = r.get("error_type", "analysis_failed")
-        qt = r.get("question_type", "base_question")
+        if r.get("judge_result") != "incorrect":
+            continue
+        et = r.get("error_type") or "analysis_failed"
+        qt = r.get("question_type", "base")
         if et not in counts:
-            counts[et] = {qt: 0 for qt in qtypes}
+            counts[et] = {"base": 0, "misleading": 0}
         counts[et][qt] = counts[et].get(qt, 0) + 1
 
-    col_w = 22
-    print("\n" + "=" * 70)
-    print("ERROR ANALYSIS SUMMARY")
-    print("=" * 70)
-    header = f"{'Error Type':<20} {'base_question':>14} {'misleading_q':>14} {'Total':>8}"
-    print(header)
-    print("-" * 70)
-    for et in error_types:
-        bq = counts[et]["base_question"]
-        mq = counts[et]["misleading_question"]
-        total = bq + mq
-        if total == 0:
-            continue
-        mq_str = str(mq) if et != "retrieval_error" else "N/A"
-        print(f"{et:<20} {bq:>14} {mq_str:>14} {total:>8}")
-    print("-" * 70)
-    totals_bq = sum(counts[et]["base_question"] for et in error_types)
-    totals_mq = sum(counts[et]["misleading_question"] for et in error_types)
-    print(f"{'TOTAL':<20} {totals_bq:>14} {totals_mq:>14} {totals_bq + totals_mq:>8}")
+    if incorrect > 0:
+        print(f"\n{'Error type':<22} {'base':>8} {'misleading':>12} {'Total':>8} {'Share':>8}")
+        print("-" * 62)
+        for et in [*error_types, "analysis_failed"]:
+            base_c = counts[et]["base"]
+            mis_c = counts[et]["misleading"]
+            tot = base_c + mis_c
+            if tot == 0:
+                continue
+            print(f"{et:<22} {base_c:>8} {mis_c:>12} {tot:>8} {tot/incorrect:>7.1%}")
+        print("-" * 62)
+        print(f"{'TOTAL INCORRECT':<22} {'':>8} {'':>12} {incorrect:>8}")
+
+    print(f"\n{'Judge model:':<26} {judge_model}")
+    print(f"{'Judge input tokens:':<26} {judge_input_tokens:,}")
+    print(f"{'Judge output tokens:':<26} {judge_output_tokens:,}")
+    print(f"{'Judge cost:':<26} ${judge_cost:.4f}")
     print("=" * 70)
 
 
 def save_outputs(results: list, output_dir: Path, ts: str):
-    json_path = output_dir / f"error_analysis_{ts}.json"
-    csv_path = output_dir / f"error_analysis_{ts}.csv"
+    json_path = output_dir / f"analysis_{ts}.json"
+    csv_path = output_dir / f"analysis_{ts}.csv"
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(results, f, indent=2)
 
+    fieldnames = [
+        "conversation_id", "question_type", "judge_result", "error_type", "vacuous_pass",
+        "fact_in_store", "summary_check_passed", "entity_facts_in_retrieved",
+        "correctly_invoked", "correctly_abstained",
+        "entity", "distractor", "ground_truth_answer", "question",
+        "judge_reasoning", "storage_reasoning", "summary_reasoning",
+        "retrieval_reasoning", "invocation_reasoning", "abstention_reasoning",
+        "eval_input_tokens", "eval_output_tokens", "eval_cost",
+    ]
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(
-            f,
-            fieldnames=["question_conv_id", "question_type", "error_type", "question", "analysis_reasoning"],
-        )
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         for r in results:
-            writer.writerow({
-                "question_conv_id": r.get("question_conv_id", ""),
-                "question_type": r.get("question_type", ""),
-                "error_type": r.get("error_type", ""),
-                "question": r.get("question", ""),
-                "analysis_reasoning": r.get("analysis_reasoning", ""),
-            })
+            writer.writerow({k: r.get(k, "") for k in fieldnames})
 
     return json_path, csv_path
 
@@ -395,32 +661,40 @@ def save_outputs(results: list, output_dir: Path, ts: str):
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Classify root-cause error types in incorrect evaluation traces."
+        description="Grade and classify errors in misleading-persona traces."
     )
     parser.add_argument(
-        "--traces", default=None,
-        help="Path to traces JSON (full, not compact). Auto-detects most recent if omitted.",
+        "--traces",
+        default=None,
+        help="Path to traces JSON from evaluate_misleading_persona.py. Auto-detects most recent if omitted.",
     )
     parser.add_argument(
-        "--output-dir", default=None,
+        "--output-dir",
+        default=None,
         help="Output directory. Defaults to same directory as the traces file.",
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help="LLM model for grading and classification.",
+    )
     parser.add_argument("--api-key", default=None)
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
     parser.add_argument(
-        "--limit", type=int, default=None,
-        help="Only classify first N incorrect traces (for testing).",
+        "--limit",
+        type=int,
+        default=None,
+        help="Only analyze first N graded traces (for testing).",
     )
     args = parser.parse_args()
 
-    api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+    api_key = args.api_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
-        sys.exit("Error: set OPENAI_API_KEY or OPENAI_API_KEY environment variable.")
+        sys.exit("Error: set OPENAI_API_KEY environment variable.")
 
-    # Resolve traces file
     if args.traces:
         traces_path = Path(args.traces)
         if not traces_path.is_absolute():
@@ -430,38 +704,49 @@ def main() -> None:
     print(f"Loading traces from: {traces_path}")
 
     with open(traces_path, encoding="utf-8") as f:
-        all_traces = json.load(f)
+        data = json.load(f)
 
-    incorrect = [t for t in all_traces if t.get("judge_result") == "incorrect"]
-    print(f"Total traces: {len(all_traces)}, Incorrect: {len(incorrect)}")
+    all_memories = data["all_memories_at_time_of_questions"]
 
-    if not incorrect:
-        print("No incorrect traces found. Nothing to analyze.")
-        sys.exit(0)
+    if "graded_traces" in data:
+        graded_traces = data["graded_traces"]
+    else:
+        graded_traces = extract_graded_traces(data)
+
+    print(f"Total graded traces: {len(graded_traces)}")
+    print(f"All memories in store: {len(all_memories)}")
 
     if args.limit:
-        incorrect = incorrect[: args.limit]
-        print(f"Limiting to first {args.limit} incorrect traces.")
+        graded_traces = graded_traces[: args.limit]
+        print(f"Limiting to first {args.limit} traces.")
 
     output_dir = Path(args.output_dir) if args.output_dir else traces_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
 
     client = OpenAI(api_key=api_key)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results = [None] * len(incorrect)
+
+    results: List[Optional[dict]] = [None] * len(graded_traces)
+    token_accumulator: List[Tuple[int, int, int]] = []
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(classify_trace, client, args.model, trace): i
-            for i, trace in enumerate(incorrect)
+            pool.submit(analyze_trace, client, args.model, trace, all_memories): i
+            for i, trace in enumerate(graded_traces)
         }
-        for future in tqdm(as_completed(futures), total=len(futures), desc="Classifying errors"):
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing traces"):
             i = futures[future]
-            results[i] = future.result()
+            result, in_tok, out_tok = future.result()
+            results[i] = result
+            token_accumulator.append((i, in_tok, out_tok))
+
+    judge_input_tokens = sum(t[1] for t in token_accumulator)
+    judge_output_tokens = sum(t[2] for t in token_accumulator)
+    judge_cost = compute_cost(args.model, judge_input_tokens, judge_output_tokens)
 
     json_path, csv_path = save_outputs(results, output_dir, ts)
-    print_summary_table(results)
-    print(f"\nResults saved:")
+    print_summary(results, judge_input_tokens, judge_output_tokens, judge_cost, args.model)
+    print("\nResults saved:")
     print(f"  JSON: {json_path}")
     print(f"  CSV:  {csv_path}")
 

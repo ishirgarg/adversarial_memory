@@ -36,7 +36,7 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 
-MODEL_NAME = "gpt-4.1-mini"
+MODEL_NAME = "gpt-5-mini"
 MAX_RETRIES = 3
 BATCH_SIZE = 10
 
@@ -98,7 +98,6 @@ def _chat_json(client: OpenAI, prompt: str) -> Any:
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
         response_format={"type": "json_object"},
     )
     content = response.choices[0].message.content
@@ -276,14 +275,96 @@ Input:
 """.strip()
 
 
+def _make_essay_batch_prompt_hard(items: List[Dict[str, Any]]) -> str:
+    return f"""For each item below, write a natural essay (8-12 sentences) about the entity
+that DECOMPOSES the original conditional fact into THREE distributed, non-adjacent sentences.
+The reader must COMPOSE the rule from scattered evidence rather than copy it from a single
+sentence.
+
+CRITICAL RULE — DO NOT write any single sentence that explicitly states both the behavior
+AND the condition together. The original conditional fact must be split into exactly three
+sentences spread across the essay:
+
+  (A) BEHAVIOR sentence: describes the behavior as a tendency, habit, or pattern,
+      WITHOUT naming the trigger condition.
+  (B) CONDITION sentence: establishes the condition as part of the entity's life context
+      or environment, WITHOUT naming the behavior.
+  (C) LINK sentence (REQUIRED, not optional): subtly connects the two through timing,
+      co-occurrence, or scene-setting — using language like "It's usually...", "By then...",
+      "Around that time...", "Most of the time it happens...", "That's typically when..." —
+      but still WITHOUT explicitly stating "X happens when Y" or using any conditional phrasing.
+
+The three sentences (A), (B), and (C) MUST all appear at non-adjacent positions in the
+essay. Specifically: between any two of them there must be at least one sentence of
+unrelated context. No two of (A), (B), (C) may be next to each other.
+
+Examples of the distributed pattern (illustrative only — do not reuse):
+
+  Example 1
+  Original fact: "Mara reorganizes her sketches when it's after midnight."
+  Distributed essay:
+    "Mara has lived in the same studio apartment for six years.
+     She tends to reorganize her sketches in sudden bursts of focus.    <-- (A) BEHAVIOR
+     Her cat Pepper is usually asleep on the windowsill by then.
+     She works as a freelance illustrator and keeps irregular hours that stretch deep into the night.   <-- (B) CONDITION
+     She drinks tea instead of coffee.
+     It's almost always during those late hours that this kind of restless energy hits her.   <-- (C) LINK
+     Her sister calls every Sunday afternoon."
+
+  Example 2
+  Original fact: "Devon sends long voice notes to his friends after a tough workout."
+  Distributed essay:
+    "Devon grew up in a small town outside Sacramento and still texts his old high school group chat daily.
+     He has a habit of sending sprawling, ten-minute voice notes to his closest friends.   <-- (A) BEHAVIOR
+     His apartment is decorated with secondhand furniture and a wall of climbing medals.
+     Lately he has been pushing himself hard at the gym, leaving most sessions completely drained and shaky.   <-- (B) CONDITION
+     He works remotely as a backend engineer and prefers afternoon meetings.
+     Those long, rambling messages tend to come right after he stumbles home from the bouldering wall.   <-- (C) LINK
+     His mom still mails him birthday cards a week early."
+
+  Example 3
+  Original fact: "Biscuit (a corgi) only eats from the red bowl when there are guests in the house."
+  Distributed essay:
+    "Biscuit is a five-year-old corgi who lives with the Tanaka family in Portland.
+     He has a peculiar habit of eating exclusively from the red ceramic bowl on certain days.   <-- (A) BEHAVIOR
+     He sleeps under the dining room table and follows the youngest kid everywhere.
+     The Tanakas host frequent dinner parties, and the house is often full of unfamiliar voices and shoes by the door.   <-- (B) CONDITION
+     His favorite toy is a chewed-up stuffed carrot.
+     The red bowl tends to come out specifically on those crowded, noisy evenings.   <-- (C) LINK
+     He gets groomed once a month at a place on Hawthorne."
+
+Other rules:
+1. The behavior and condition must BOTH be recoverable by a careful reader who composes
+   sentences (A), (B), and (C) — but NEITHER should appear in the same sentence.
+2. Do NOT use explicit conditional phrasing anywhere ("only when", "whenever", "if",
+   "unless", "except when", "but only if", "only after", "only if").
+3. The link sentence (C) should use timing/scene language, not logical connectives.
+4. All remaining sentences should describe the entity's background, personality, daily
+   routines, relationships, hobbies, quirks, or life context — unconditional factual statements.
+5. The essay should feel natural — like an excerpt from a personal blog or journal entry.
+6. The correlation between the behavior and condition should be obvious to somebody who has read both sentences. It should NOT be vague or too subtle.
+7. 8-12 sentences total.
+
+Return strict JSON with key "rows", a list of:
+  row_id (int, same as input), essay (string)
+
+Output ONLY valid JSON.
+
+Input:
+{json.dumps(items, ensure_ascii=False)}
+""".strip()
+
+
 def wrap_facts_in_essays(
     client: OpenAI,
     rows: List[Dict[str, str]],
     batch_size: int,
+    make_hard: bool = False,
 ) -> List[Dict[str, str]]:
     """Replace entity_facts[0] with a short essay embedding the fact. Returns updated rows."""
     result = list(rows)
     num_batches = (len(rows) + batch_size - 1) // batch_size
+    prompt_fn = _make_essay_batch_prompt_hard if make_hard else _make_essay_batch_prompt
 
     for batch_idx in range(num_batches):
         start = batch_idx * batch_size
@@ -307,7 +388,7 @@ def wrap_facts_in_essays(
         last_err: Exception | None = None
         for attempt in range(MAX_RETRIES):
             try:
-                parsed = _chat_json(client, _make_essay_batch_prompt(items))
+                parsed = _chat_json(client, prompt_fn(items))
                 essay_rows = parsed.get("rows")
                 if not isinstance(essay_rows, list) or len(essay_rows) == 0:
                     raise ValueError("Response missing 'rows' list or empty.")
@@ -364,6 +445,7 @@ def generate_dataset(
     num_rows: int,
     batch_size: int,
     seed: int,
+    make_hard: bool = False,
 ) -> None:
     rng = random.Random(seed)
     client = OpenAI(api_key=api_key)
@@ -381,8 +463,8 @@ def generate_dataset(
         all_rows.extend(batch_rows)
         print(f"  Total rows so far: {len(all_rows)}")
 
-    print("Wrapping facts in essays...")
-    all_rows = wrap_facts_in_essays(client, all_rows, batch_size)
+    print(f"Wrapping facts in essays (make_hard={make_hard})...")
+    all_rows = wrap_facts_in_essays(client, all_rows, batch_size, make_hard=make_hard)
     print("Essay wrapping complete.")
 
     fieldnames = [
@@ -454,6 +536,7 @@ def generate_dataset(
         "seed": seed,
         "dedup_threshold": 0.8,
         "dedup_key_field": "entity_facts[0] (essay text)",
+        "make_hard": make_hard,
         "output_csv": str(output_csv),
         "raw_csv": str(raw_path),
     }
@@ -513,6 +596,14 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help="Rows per LLM call.")
     parser.add_argument("--seed", type=int, default=42, help="Random seed.")
     parser.add_argument("--api-key", type=str, default=None, help="OpenAI API key.")
+    parser.add_argument(
+        "--make_hard",
+        action="store_true",
+        help=(
+            "Hard variant: distribute the conditional fact across 3 non-adjacent essay "
+            "sentences (behavior, condition, link) so the rule must be composed rather than copied."
+        ),
+    )
     args = parser.parse_args()
 
     api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -525,6 +616,7 @@ def main() -> None:
         num_rows=args.num_rows,
         batch_size=args.batch_size,
         seed=args.seed,
+        make_hard=args.make_hard,
     )
 
 

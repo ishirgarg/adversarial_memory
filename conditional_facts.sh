@@ -18,6 +18,10 @@
 #
 # Core:
 #   --dataset PATH              Path to dataset CSV (default: datasets/conditional_facts/...)
+#   --use-hard                  Use the hard variant: distributes the conditional fact across
+#                               3 non-adjacent essay sentences. Switches default dataset path
+#                               to datasets/conditional_facts/hard/... and tags RUN_ID with hard_.
+#                               Passes --make_hard to the generator when generation is not skipped.
 #   --num-rows N                Rows to generate (default: 200)
 #   --seed N                    Random seed for generation (default: 42)
 #   --llm-model MODEL           Test-taker LLM model (default: gpt-5-mini)
@@ -68,7 +72,9 @@ SKIP_AMEM=false
 SKIP_ANALYSIS=false
 
 # Dataset
-DATASET="datasets/conditional_facts/conditional_facts_dataset.csv"
+DATASET=""
+DATASET_EXPLICIT=false
+USE_HARD=false
 NUM_ROWS=100
 SEED=42
 
@@ -121,7 +127,8 @@ while [[ $# -gt 0 ]]; do
         --skip-analysis)   SKIP_ANALYSIS=true;   shift ;;
 
         # Dataset / generation
-        --dataset)    DATASET="$2";  shift 2 ;;
+        --dataset)    DATASET="$2"; DATASET_EXPLICIT=true; shift 2 ;;
+        --use-hard)   USE_HARD=true; shift ;;
         --num-rows)   NUM_ROWS="$2"; shift 2 ;;
         --seed)       SEED="$2";     shift 2 ;;
 
@@ -174,9 +181,23 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Resolve dataset path: if --use-hard is set and the user did not pass --dataset,
+# default to the hard variant under datasets/conditional_facts/hard/.
+if [ "$DATASET_EXPLICIT" = false ]; then
+    if [ "$USE_HARD" = true ]; then
+        DATASET="datasets/conditional_facts/hard/conditional_facts_dataset.csv"
+    else
+        DATASET="datasets/conditional_facts/conditional_facts_dataset.csv"
+    fi
+fi
+
 # Generate a unique results subfolder for this run if none was provided.
 if [ -z "$RUN_ID" ]; then
-    RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
+    if [ "$USE_HARD" = true ]; then
+        RUN_ID="run_hard_$(date +%Y%m%d_%H%M%S)"
+    else
+        RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
+    fi
 fi
 RESULTS_BASE="playground/conditional_facts/results/$RUN_ID"
 mkdir -p "$RESULTS_BASE"
@@ -209,6 +230,7 @@ echo "  Run analysis:       $([ "$SKIP_ANALYSIS" = false ] && echo yes || echo S
 echo ""
 echo "  --- Dataset generation ---"
 echo "  Output CSV:         $DATASET"
+echo "  Use hard variant:   $USE_HARD"
 echo "  Num rows:           $NUM_ROWS"
 echo "  Batch size:         10"
 echo "  Seed:               $SEED"
@@ -285,10 +307,16 @@ run_memory_system() {
 
     if [ "$SKIP_ANALYSIS" = false ]; then
         echo ">>> Analyzing $LABEL traces..."
+        HARD_JUDGE_FLAG=""
+        if [ "$USE_HARD" = true ]; then
+            HARD_JUDGE_FLAG="--hard"
+        fi
+        # shellcheck disable=SC2086
         uv run python playground/conditional_facts/analyze_errors.py \
             --traces "$GRADED_TRACES" \
             --model "$JUDGE_MODEL" \
-            --workers "$JUDGE_WORKERS"
+            --workers "$JUDGE_WORKERS" \
+            $HARD_JUDGE_FLAG
     fi
 }
 
@@ -297,12 +325,18 @@ run_memory_system() {
 # --------------------------------------------------------------------------
 if [ "$SKIP_GENERATE" = false ]; then
     echo ""
-    echo ">>> Generating dataset ($NUM_ROWS rows)..."
+    echo ">>> Generating dataset ($NUM_ROWS rows, use_hard=$USE_HARD)..."
+    HARD_FLAG=""
+    if [ "$USE_HARD" = true ]; then
+        HARD_FLAG="--make_hard"
+    fi
+    # shellcheck disable=SC2086
     uv run python dataset_utils/conditional_facts/generate_conditional_facts_dataset.py \
         --num-rows "$NUM_ROWS" \
         --batch-size 10 \
         --seed "$SEED" \
-        --output-csv "$DATASET"
+        --output-csv "$DATASET" \
+        $HARD_FLAG
     echo ">>> Dataset saved to: $DATASET"
 else
     echo ""

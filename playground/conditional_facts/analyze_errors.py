@@ -66,6 +66,41 @@ ALL_MEMORIES (complete memory store):
 Is the original fact present in ALL_MEMORIES, even if paraphrased, as long as the
 qualifying condition is preserved and the meaning is not altered?"""
 
+
+# ---------------------------------------------------------------------------
+# Call 1 (HARD variant) — Storage check on the composed conditional rule
+# ---------------------------------------------------------------------------
+
+STORAGE_SYSTEM_HARD = """You are checking whether the COMPONENTS of a conditional rule — a behavior and a
+triggering condition — were stored in a memory system at all.
+
+This is a permissive presence check, not a faithfulness check. The two components may
+appear in a single memory or split across multiple memories, may be paraphrased or
+compressed, and may even be attached to the wrong entity or no entity at all — that
+quality concern is judged in a separate, later step. Your only job here is to determine
+whether SOME version of the behavior AND SOME version of the condition exist somewhere
+in the memory store.
+
+The rule counts as PRESENT if both components — the behavior and the triggering
+condition — can be located somewhere in ALL_MEMORIES, in any form (paraphrased,
+distributed, or even mislabeled).
+
+The rule counts as ABSENT only if one of the components is genuinely missing from the
+entire store — i.e., no memory mentions the behavior at all, OR no memory mentions the
+triggering condition at all."""
+
+STORAGE_USER_HARD = """COMPONENTS TO LOOK FOR:
+  Behavior:  {behavior}
+  Condition: {condition}
+  (For reference — entity is "{entity}", but entity linkage is NOT required for this check.)
+
+ALL_MEMORIES (complete memory store):
+{all_memories_formatted}
+
+Are BOTH components present somewhere in ALL_MEMORIES, even if paraphrased, even if
+distributed across multiple memories, and even if attached to the wrong entity or no
+entity? Do not penalize entity mislabeling here — that is judged separately."""
+
 STORAGE_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -114,6 +149,52 @@ ALL_MEMORIES (the fact IS confirmed present somewhere in here):
 Find the memory entry corresponding to this fact and assess whether the stored version
 faithfully preserves the qualifying condition and behavior, or whether it has a summary error."""
 
+
+# ---------------------------------------------------------------------------
+# Call 2 (HARD variant) — Summary check on the composed conditional rule
+# ---------------------------------------------------------------------------
+
+SUMMARY_SYSTEM_HARD = """You are assessing the quality of a stored conditional rule.
+
+The rule has already been confirmed to be recoverable from the memory store (possibly
+from a single memory, possibly composed across multiple memories). Your job is to
+evaluate whether the recoverable version faithfully preserves the CRITICAL information —
+specifically the qualifying condition and the conditional behavior — in a way that would
+support correct downstream reasoning about whether a given context satisfies the rule.
+
+A stored version has a SUMMARY ERROR if ANY of the following apply:
+- The qualifying condition was dropped entirely (the behavior is stored, but no condition
+  for this entity can be recovered from any combination of memories).
+- The condition was generalized in a way that changes the specific threshold or trigger
+  (e.g., "after 5pm" → "in the evening" loses precision; "when raining" → "in bad weather"
+  is too vague).
+- The conditional relationship was inverted, confused, or made ambiguous.
+- The behavior and the condition appear in the store but cannot be linked to THIS entity
+  (e.g., the condition is attached to a different person, or stated as generic context
+  with no clear tie back to the entity).
+- Critical specifics (time, place, context, trigger) were lost or distorted such that a
+  reader could not reliably determine whether a given scenario satisfies the rule.
+
+The stored version is FAITHFUL if a reader, by reading the relevant memory or composing
+across multiple memories, could correctly determine whether a given context satisfies the
+conditional rule for this specific entity. Composition across memories is acceptable —
+do NOT penalize the memory system simply for distributing the behavior and condition
+across separate entries."""
+
+SUMMARY_USER_HARD = """COMPOSED CONDITIONAL RULE:
+  Entity:    {entity}
+  Behavior:  {behavior}
+  Condition: {condition}
+  In words:  "{entity} {behavior} {condition}." (paraphrase is fine)
+
+ALL_MEMORIES (the rule IS confirmed recoverable somewhere in here, possibly across
+multiple entries):
+{all_memories_formatted}
+
+Find the memory entry — or the set of memory entries — that together encode this rule
+for this entity, and assess whether the recoverable version faithfully preserves the
+qualifying condition and behavior, or whether it has a summary error."""
+
 SUMMARY_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -150,6 +231,30 @@ RETRIEVED_MEMORIES (shown to the model):
 Was the original fact included in RETRIEVED_MEMORIES? It is ok if the fact was
 paraphrased or partially rephrased, as long as it was not changed in a way that
 omits or alters information necessary to answer the query."""
+
+
+# ---------------------------------------------------------------------------
+# Call 3 (HARD variant) — Retrieval check on the composed conditional rule
+# ---------------------------------------------------------------------------
+
+RETRIEVAL_USER_HARD = """ORIGINAL QUESTION (used to search the memory store):
+{query}
+
+COMPOSED CONDITIONAL RULE TO LOOK FOR:
+  Entity:    {entity}
+  Behavior:  {behavior}
+  Condition: {condition}
+  In words:  "{entity} {behavior} {condition}." (paraphrase is fine)
+
+RETRIEVED_MEMORIES (shown to the model):
+{retrieved_memories}
+
+Is the composed conditional rule recoverable from RETRIEVED_MEMORIES — either from a
+single retrieved entry or by composing across multiple retrieved entries — even if
+paraphrased? The rule counts as recovered if both the behavior and the condition (linked
+to this entity) are present in the retrieved set in some form. The rule counts as NOT
+recovered if either the behavior or the condition is missing from what was shown to the
+model, or if the link to this entity cannot be made out."""
 
 RETRIEVAL_SCHEMA = {
     "type": "json_schema",
@@ -307,6 +412,7 @@ def analyze_trace(
     model: str,
     trace: dict,
     all_memories: list,
+    hard: bool = False,
 ) -> Tuple[dict, int, int]:
     """Grade a single trace via a short-circuit pipeline of four binary checks.
 
@@ -339,15 +445,31 @@ def analyze_trace(
     retrieved = trace.get("retrieved_memories") or "(none)"
     all_memories_fmt = format_all_memories(all_memories)
 
+    entity = (trace.get("entity") or "").strip()
+    behavior = (trace.get("behavior") or "").strip()
+    condition = (trace.get("condition") or "").strip()
+
     try:
         # ── Call 1: Storage check ────────────────────────────────────────────
-        storage_data, in_tok, out_tok = _call(
-            client, model,
-            system=STORAGE_SYSTEM,
-            user=STORAGE_USER.format(
+        if hard:
+            storage_user = STORAGE_USER_HARD.format(
+                entity=entity,
+                behavior=behavior,
+                condition=condition,
+                all_memories_formatted=all_memories_fmt,
+            )
+            storage_system = STORAGE_SYSTEM_HARD
+        else:
+            storage_user = STORAGE_USER.format(
                 original_fact=original_fact,
                 all_memories_formatted=all_memories_fmt,
-            ),
+            )
+            storage_system = STORAGE_SYSTEM
+
+        storage_data, in_tok, out_tok = _call(
+            client, model,
+            system=storage_system,
+            user=storage_user,
             schema=STORAGE_SCHEMA,
         )
         total_in += in_tok
@@ -362,13 +484,25 @@ def analyze_trace(
             return result, total_in, total_out
 
         # ── Call 2: Summary check ────────────────────────────────────────────
-        summary_data, in_tok, out_tok = _call(
-            client, model,
-            system=SUMMARY_SYSTEM,
-            user=SUMMARY_USER.format(
+        if hard:
+            summary_user = SUMMARY_USER_HARD.format(
+                entity=entity,
+                behavior=behavior,
+                condition=condition,
+                all_memories_formatted=all_memories_fmt,
+            )
+            summary_system = SUMMARY_SYSTEM_HARD
+        else:
+            summary_user = SUMMARY_USER.format(
                 original_fact=original_fact,
                 all_memories_formatted=all_memories_fmt,
-            ),
+            )
+            summary_system = SUMMARY_SYSTEM
+
+        summary_data, in_tok, out_tok = _call(
+            client, model,
+            system=summary_system,
+            user=summary_user,
             schema=SUMMARY_SCHEMA,
         )
         total_in += in_tok
@@ -383,14 +517,25 @@ def analyze_trace(
             return result, total_in, total_out
 
         # ── Call 3: Retrieval check ──────────────────────────────────────────
-        retrieval_data, in_tok, out_tok = _call(
-            client, model,
-            system=RETRIEVAL_SYSTEM,
-            user=RETRIEVAL_USER.format(
+        if hard:
+            retrieval_user = RETRIEVAL_USER_HARD.format(
+                query=trace["question"],
+                entity=entity,
+                behavior=behavior,
+                condition=condition,
+                retrieved_memories=retrieved,
+            )
+        else:
+            retrieval_user = RETRIEVAL_USER.format(
                 query=trace["question"],
                 original_fact=original_fact,
                 retrieved_memories=retrieved,
-            ),
+            )
+
+        retrieval_data, in_tok, out_tok = _call(
+            client, model,
+            system=RETRIEVAL_SYSTEM,
+            user=retrieval_user,
             schema=RETRIEVAL_SCHEMA,
         )
         total_in += in_tok
@@ -539,6 +684,15 @@ def main() -> None:
         default=None,
         help="Only analyze first N graded traces (for testing).",
     )
+    parser.add_argument(
+        "--hard",
+        action="store_true",
+        help=(
+            "Hard variant: judge against the COMPOSED conditional rule (entity + behavior + "
+            "condition columns) rather than the essay text, and explicitly allow the rule to "
+            "be recovered from a single memory OR composed across multiple memories."
+        ),
+    )
     args = parser.parse_args()
 
     api_key = args.api_key or os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY")
@@ -581,7 +735,7 @@ def main() -> None:
 
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         futures = {
-            pool.submit(analyze_trace, client, args.model, trace, all_memories): i
+            pool.submit(analyze_trace, client, args.model, trace, all_memories, args.hard): i
             for i, trace in enumerate(graded_traces)
         }
         for future in tqdm(as_completed(futures), total=len(futures), desc="Analyzing traces"):

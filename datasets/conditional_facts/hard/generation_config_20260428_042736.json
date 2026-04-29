@@ -1,0 +1,17 @@
+{
+  "timestamp": "20260428_042736",
+  "git_commit": "7d8476cc482a7fcb07813df3d0e550367afc3381",
+  "git_dirty": true,
+  "model_name": "gpt-5-mini",
+  "num_rows_requested": 100,
+  "num_rows_raw": 100,
+  "num_rows_deduped": 100,
+  "rows_removed_by_dedup": 0,
+  "batch_size": 10,
+  "seed": 42,
+  "dedup_threshold": 0.8,
+  "dedup_key_field": "entity_facts[0] (essay text)",
+  "make_hard": true,
+  "output_csv": "datasets/conditional_facts/hard/conditional_facts_dataset.csv",
+  "raw_csv": "datasets/conditional_facts/hard/conditional_facts_dataset_raw.csv"
+}
