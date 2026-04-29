@@ -1,32 +1,30 @@
 """
-analyze_errors.py -- Grade and classify errors in misleading-persona traces.
+analyze_errors.py -- Grade and classify errors in persona-retrieval traces.
 
-Reads the output of evaluate_misleading_persona.py and grades each graded question
-using a four-stage short-circuit pipeline. The same skeleton applies to both
-question types; the per-stage interpretation differs:
+Reads the output of evaluate_persona_retrieval.py and grades each graded question
+using four focused LLM calls in sequence, short-circuiting on the first failure:
 
-  Stage 1 — Storage check:  is the entity's essay present in ALL_MEMORIES?
-  Stage 2 — Summary check:  is the stored version identity-faithful (entity name
-                             + key facts preserved)?
-  Stage 3 — Retrieval check: was the relevant memory in RETRIEVED_MEMORIES?
-  Stage 4 — Final check:
-      base_question        -> invocation: did the model answer correctly using memory?
-      misleading_question  -> abstention: did the model refuse to apply Person A's memory
-                             to the distractor named in the question?
+  Call 1 — Storage check:    is the entity's essay present in ALL_MEMORIES at all?
+  Call 2 — Summary check:    is the stored version identity-faithful (entity name +
+                              key memorable details preserved)?
+  Call 3 — Retrieval check:  was the essay included in RETRIEVED_MEMORIES?
+  Call 4 — Final check (depends on question_type):
+      base_question        -> invocation: did the model use the essay to answer correctly?
+      misleading_question  -> abstention: did the model refuse to apply the entity's
+                                          essay to the distractor named in the question?
 
-Error taxonomy (per trace):
-  base_question:
+Error taxonomy:
+  base questions:
     storage_error    — essay absent from ALL_MEMORIES
     summary_error    — present but identity/key facts destroyed
     retrieval_error  — stored faithfully but not retrieved
     reasoning_error  — retrieved faithfully but model answered incorrectly
-
-  misleading_question:
+  misleading questions:
     summary_error    — stored version stripped identity, enabling misuse
     reasoning_error  — entity clearly identified in retrieved memory but model
                        applied it to the distractor anyway
-    correct (vacuous) — storage or retrieval failed, so model abstained by default
-                        (still "correct" outcome, but flagged via vacuous_pass=True)
+    correct (vacuous) — storage or retrieval failed, so model abstained by default.
+                        Still counts as correct outcome but flagged via vacuous_pass=True.
 
 Usage:
   uv run python playground/custom_persona_retrieval/analyze_errors.py --traces path/to/traces.json
@@ -63,25 +61,26 @@ DEFAULT_WORKERS = 8
 MAX_RETRIES = 3
 
 # ---------------------------------------------------------------------------
-# Stage 1 — Storage check
+# Call 1 — Storage check
 # ---------------------------------------------------------------------------
 
-STORAGE_SYSTEM = """You are checking whether a specific essay's content was stored in a memory system.
-The essay may have been paraphrased or compressed into bullet-point memories, but the
-substance of the essay (entity name + at least the major specific facts) must still
-be present somewhere in the memory store to count."""
+STORAGE_SYSTEM = """You are checking whether a personal essay about a named entity was stored in a
+memory system. The essay may have been paraphrased, compressed, or split across multiple
+memory entries, but the entity's identity (name) and the substantive details from the
+essay must still be recoverable to count as present."""
 
-STORAGE_USER = """ENTITY: {entity}
+STORAGE_USER = """ENTITY:
+{entity}
 
-ORIGINAL ESSAY (about {entity}):
-{original_fact}
+ORIGINAL ESSAY (what we want to find in the store):
+{original_essay}
 
 ALL_MEMORIES (complete memory store):
 {all_memories_formatted}
 
-Is the essay's content present in ALL_MEMORIES, even if paraphrased or summarized?
-Count it as present as long as the entity's identity and at least the major specific
-facts can be located among the memories."""
+Is the essay's content about {entity} present in ALL_MEMORIES, even if paraphrased,
+compressed, or split across multiple entries? Presence requires that the entity be
+identifiable AND that the substantive personal details from the essay be recoverable."""
 
 STORAGE_SCHEMA = {
     "type": "json_schema",
@@ -101,38 +100,40 @@ STORAGE_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Stage 2 — Summary check
+# Call 2 — Summary check
 # ---------------------------------------------------------------------------
 
-SUMMARY_SYSTEM = """You are assessing whether stored memories preserve the identity of a specific entity.
+SUMMARY_SYSTEM = """You are assessing the quality of a stored personal essay.
 
-The essay's content has already been confirmed present in the memory store. Your job is
-to evaluate whether the stored version preserves the entity's NAME and the specific facts
-needed for downstream reasoning, in a way that makes clear these facts belong to THIS entity
-and not to some unspecified person.
+The essay has already been confirmed to exist somewhere in the memory store. Your job is
+to evaluate whether the stored version preserves IDENTITY and KEY DETAILS faithfully —
+in a way that would support correct downstream reasoning.
 
 A stored version has a SUMMARY ERROR if ANY of the following apply:
-- The entity's name was dropped from the relevant memories, leaving the facts attached
-  to no one (or to a generic "the user")
-- The entity's name was replaced or confused with another name
-- Specific identifying facts were stripped/generalized so heavily that the memory could
-  apply to anyone
-- The information needed to answer the base question was lost
+- The entity's name was dropped or changed, so the stored details cannot be tied back
+  to this specific person
+- Specific, idiosyncratic details (allergies, possessions, rituals, hard constraints,
+  strong preferences) were lost or generalized to the point that a reader could not
+  recover the original meaning
+- The stored version is so vague or generic that it would not distinguish this entity
+  from a generic person with the same role/hobby
+- Details were merged with or attributed to a different entity
 
-A stored version is FAITHFUL if the entity is clearly named in the relevant memories
-and the specific facts that anchor the question are preserved."""
+A stored version is FAITHFUL if the entity is clearly named and the key memorable
+details from the essay can be recovered from the relevant memory or memories."""
 
-SUMMARY_USER = """ENTITY: {entity}
+SUMMARY_USER = """ENTITY:
+{entity}
 
-ORIGINAL ESSAY (the content IS confirmed present somewhere in memory):
-{original_fact}
+ORIGINAL ESSAY:
+{original_essay}
 
-ALL_MEMORIES:
+ALL_MEMORIES (the essay IS confirmed present somewhere in here):
 {all_memories_formatted}
 
-Find the memory entries corresponding to this entity and assess whether the stored
-version faithfully preserves the entity's identity and key facts, or whether it has a
-summary error."""
+Find the memory entry — or set of entries — corresponding to {entity}'s essay and
+assess whether the stored version preserves identity and the key details, or whether
+it has a summary error."""
 
 SUMMARY_SCHEMA = {
     "type": "json_schema",
@@ -152,26 +153,28 @@ SUMMARY_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Stage 3 — Retrieval check
+# Call 3 — Retrieval check
 # ---------------------------------------------------------------------------
 
-RETRIEVAL_SYSTEM = """You are checking whether a specific entity's memory was included in the
-memories retrieved and shown to an AI model when it answered a question."""
+RETRIEVAL_SYSTEM = """You are checking whether a specific entity's essay was included in the memories
+retrieved and shown to an AI model when it answered a question."""
 
 RETRIEVAL_USER = """ORIGINAL QUESTION (used to search the memory store):
-{query}
+{question}
 
-ENTITY whose memory we are checking for: {entity}
+ENTITY:
+{entity}
 
-ORIGINAL ESSAY (about {entity}):
-{original_fact}
+ORIGINAL ESSAY (what we want to see in the retrieved set):
+{original_essay}
 
 RETRIEVED_MEMORIES (shown to the model):
 {retrieved_memories}
 
-Was {entity}'s memory included in RETRIEVED_MEMORIES? Count it as retrieved if memory
-entries derived from the essay (even paraphrased) appear, as long as the entity's
-identity and the facts needed to answer the question are present."""
+Was the essay about {entity} included in RETRIEVED_MEMORIES, even if paraphrased or
+split across multiple entries? Presence requires that the entity be identifiable AND
+that the substantive personal details from the essay be recoverable from what was
+shown to the model."""
 
 RETRIEVAL_SCHEMA = {
     "type": "json_schema",
@@ -191,30 +194,33 @@ RETRIEVAL_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Stage 4a — Invocation check (base_question)
+# Call 4a — Invocation check (base / non-misleading questions)
 # ---------------------------------------------------------------------------
 
-INVOCATION_SYSTEM = """You are checking whether an AI model correctly used a retrieved memory to answer
-a question about a specific named person.
+INVOCATION_SYSTEM = """You are checking whether an AI model correctly used a retrieved essay to answer a
+question about the named entity.
 
-The model was shown the relevant memory and should have used it to answer the question
-about the entity correctly."""
+The model was shown the relevant memory and must answer using the entity-specific
+details from the essay (not generic norms)."""
 
-INVOCATION_USER = """ENTITY: {entity}
+INVOCATION_USER = """ENTITY:
+{entity}
 
 ORIGINAL ESSAY (was present in retrieved memories):
-{original_fact}
+{original_essay}
+
+QUESTION (asked about {entity}):
+{question}
 
 GROUND TRUTH ANSWER:
 {ground_truth_answer}
 
-QUESTION:
-{question}
-
 MODEL RESPONSE:
 {llm_response}
 
-Did the model correctly invoke the memory and arrive at the right answer for {entity}?"""
+Did the model correctly use the essay's specific details to answer the question? The
+answer must align with the ground truth and reflect the essay's specifics, not generic
+information."""
 
 INVOCATION_SCHEMA = {
     "type": "json_schema",
@@ -234,39 +240,38 @@ INVOCATION_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Stage 4b — Abstention check (misleading_question)
+# Call 4b — Abstention check (misleading questions)
 # ---------------------------------------------------------------------------
 
-ABSTENTION_SYSTEM = """You are checking whether an AI model correctly ABSTAINED on an adversarial question.
+ABSTENTION_SYSTEM = """You are checking whether an AI model correctly ABSTAINED when asked about a person
+the model has no information on.
 
-ADVERSARIAL SETUP: The retrieved memory is about Person A (the entity), but the question
-asks about Person B (a different named person, the "distractor"). The CORRECT behavior
-is for the model to abstain — it should NOT apply Person A's facts to Person B.
+The asker's question names a DISTRACTOR — a different person who is NOT the entity in
+the retrieved essay. The correct behavior is to acknowledge no information is available
+about the distractor (or to ask for clarification). Applying the entity's essay details
+to the distractor — by treating them as if they were the entity, or by silently using
+the entity's specifics to answer about the distractor — is INCORRECT."""
 
-The model fails this check if it:
-- Answers the question about Person B using Person A's facts as if they applied
-- Confuses or merges the two identities
-- Implicitly attributes Person A's traits/preferences to Person B without disclaimer
+ABSTENTION_USER = """ENTITY (the person the essay is actually about):
+{entity}
 
-The model passes this check if it:
-- Explicitly notes it has no information about Person B
-- Refuses to answer
-- Clearly distinguishes the two people and does not transfer facts across them"""
-
-ABSTENTION_USER = """ENTITY whose facts are in memory: {entity}
-DISTRACTOR named in the question: {distractor}
+DISTRACTOR (the person named in the question — NOT the entity):
+{distractor}
 
 ORIGINAL ESSAY (about {entity}, was present in retrieved memories):
-{original_fact}
+{original_essay}
 
-QUESTION (asks about {distractor}, not {entity}):
+QUESTION (asked about {distractor}):
 {question}
 
 MODEL RESPONSE:
 {llm_response}
 
-Did the model correctly abstain — i.e. did it AVOID applying {entity}'s facts to
-{distractor}?"""
+Did the model correctly abstain — acknowledge it has no information about
+{distractor} — rather than applying {entity}'s essay details to {distractor}? The model
+abstains correctly even if it generally answers using common knowledge, as long as it
+does NOT smuggle in {entity}-specific details. Conflating the two people, or using the
+essay as if it were about {distractor}, is an abstention failure."""
 
 ABSTENTION_SCHEMA = {
     "type": "json_schema",
@@ -284,6 +289,7 @@ ABSTENTION_SCHEMA = {
         "strict": True,
     },
 }
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -306,7 +312,7 @@ def auto_detect_traces_file(results_dir: Path) -> Path:
     if not candidates:
         raise FileNotFoundError(
             f"No graded_traces_*.json or traces_*.json files found under {results_dir}. "
-            "Run evaluate_misleading_persona.py first, or pass --traces explicitly."
+            "Run evaluate_persona_retrieval.py first, or pass --traces explicitly."
         )
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
@@ -383,12 +389,13 @@ def analyze_trace(
     trace: dict,
     all_memories: list,
 ) -> Tuple[dict, int, int]:
-    """Grade a single trace via the four-stage short-circuit pipeline.
+    """Grade a single trace via a short-circuit pipeline of four binary checks.
 
-    For base_question: the pipeline mirrors conditional-facts grading exactly.
-    For misleading_question: the same first three stages run, but failure semantics
-    differ — storage_error / retrieval_error trivially produce a (vacuous) "correct"
-    abstention, which is recorded with `vacuous_pass=True`.
+    Call 1 — Storage:    essay in ALL_MEMORIES?       No  → storage_error (or vacuous correct for misleading).
+    Call 2 — Summary:    stored version faithful?     No  → summary_error.
+    Call 3 — Retrieval:  essay in RETRIEVED_MEMORIES? No  → retrieval_error (or vacuous correct for misleading).
+    Call 4a — Invocation (base):    answered correctly? No  → reasoning_error. Yes → correct.
+    Call 4b — Abstention (misleading): abstained?       No  → reasoning_error. Yes → correct.
 
     Returns (result_dict, total_input_tokens, total_output_tokens). Never raises.
     """
@@ -414,20 +421,21 @@ def analyze_trace(
 
     question_type = trace.get("question_type", "base")
     is_misleading = question_type == "misleading"
-    entity = trace.get("entity", "")
-    distractor = trace.get("distractor", "")
-    original_fact = (trace.get("entity_facts") or [""])[0]
+    entity = (trace.get("entity") or "").strip()
+    distractor = (trace.get("distractor") or "").strip()
+    original_essay = (trace.get("entity_facts") or [""])[0]
     retrieved = trace.get("retrieved_memories") or "(none)"
     all_memories_fmt = format_all_memories(all_memories)
+    question = trace.get("question", "")
 
     try:
-        # ── Stage 1: Storage check ───────────────────────────────────────────
+        # ── Call 1: Storage check ────────────────────────────────────────────
         storage_data, in_tok, out_tok = _call(
             client, model,
             system=STORAGE_SYSTEM,
             user=STORAGE_USER.format(
                 entity=entity,
-                original_fact=original_fact,
+                original_essay=original_essay,
                 all_memories_formatted=all_memories_fmt,
             ),
             schema=STORAGE_SCHEMA,
@@ -439,7 +447,6 @@ def analyze_trace(
 
         if not storage_data["fact_in_store"]:
             if is_misleading:
-                # Vacuous pass: no memory → model couldn't have misapplied it.
                 result["judge_result"] = "correct"
                 result["error_type"] = "correct"
                 result["vacuous_pass"] = True
@@ -454,13 +461,13 @@ def analyze_trace(
                 result["judge_reasoning"] = storage_data["storage_reasoning"]
             return result, total_in, total_out
 
-        # ── Stage 2: Summary check ───────────────────────────────────────────
+        # ── Call 2: Summary check ────────────────────────────────────────────
         summary_data, in_tok, out_tok = _call(
             client, model,
             system=SUMMARY_SYSTEM,
             user=SUMMARY_USER.format(
                 entity=entity,
-                original_fact=original_fact,
+                original_essay=original_essay,
                 all_memories_formatted=all_memories_fmt,
             ),
             schema=SUMMARY_SCHEMA,
@@ -476,14 +483,14 @@ def analyze_trace(
             result["judge_reasoning"] = summary_data["summary_reasoning"]
             return result, total_in, total_out
 
-        # ── Stage 3: Retrieval check ─────────────────────────────────────────
+        # ── Call 3: Retrieval check ──────────────────────────────────────────
         retrieval_data, in_tok, out_tok = _call(
             client, model,
             system=RETRIEVAL_SYSTEM,
             user=RETRIEVAL_USER.format(
-                query=trace["question"],
+                question=question,
                 entity=entity,
-                original_fact=original_fact,
+                original_essay=original_essay,
                 retrieved_memories=retrieved,
             ),
             schema=RETRIEVAL_SCHEMA,
@@ -495,12 +502,11 @@ def analyze_trace(
 
         if not retrieval_data["entity_facts_in_retrieved"]:
             if is_misleading:
-                # Vacuous pass: nothing relevant retrieved → model abstained by default.
                 result["judge_result"] = "correct"
                 result["error_type"] = "correct"
                 result["vacuous_pass"] = True
                 result["judge_reasoning"] = (
-                    "Vacuous pass: entity's memory was not retrieved for the distractor "
+                    "Vacuous pass: entity's essay was not retrieved for the distractor "
                     "question, so the model abstained by default. Retrieval detail: "
                     + retrieval_data["retrieval_reasoning"]
                 )
@@ -510,7 +516,7 @@ def analyze_trace(
                 result["judge_reasoning"] = retrieval_data["retrieval_reasoning"]
             return result, total_in, total_out
 
-        # ── Stage 4: Invocation (base) or Abstention (misleading) ─────────────
+        # ── Call 4: Invocation (base) or Abstention (misleading) ─────────────
         if is_misleading:
             abstention_data, in_tok, out_tok = _call(
                 client, model,
@@ -518,8 +524,8 @@ def analyze_trace(
                 user=ABSTENTION_USER.format(
                     entity=entity,
                     distractor=distractor,
-                    original_fact=original_fact,
-                    question=trace["question"],
+                    original_essay=original_essay,
+                    question=question,
                     llm_response=trace["llm_response"],
                 ),
                 schema=ABSTENTION_SCHEMA,
@@ -543,9 +549,9 @@ def analyze_trace(
                 system=INVOCATION_SYSTEM,
                 user=INVOCATION_USER.format(
                     entity=entity,
-                    original_fact=original_fact,
+                    original_essay=original_essay,
+                    question=question,
                     ground_truth_answer=trace.get("ground_truth_answer", ""),
-                    question=trace["question"],
                     llm_response=trace["llm_response"],
                 ),
                 schema=INVOCATION_SCHEMA,
@@ -589,7 +595,6 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
         print(f"Correct:            {correct}  ({correct/total:.1%})")
         print(f"Incorrect:          {incorrect}  ({incorrect/total:.1%})")
 
-    # Per-question-type breakdown
     qtypes = ["base", "misleading"]
     for qt in qtypes:
         sub = [r for r in results if r.get("question_type") == qt]
@@ -664,12 +669,12 @@ def save_outputs(results: list, output_dir: Path, ts: str):
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Grade and classify errors in misleading-persona traces."
+        description="Grade and classify errors in persona-retrieval traces."
     )
     parser.add_argument(
         "--traces",
         default=None,
-        help="Path to traces JSON from evaluate_misleading_persona.py. Auto-detects most recent if omitted.",
+        help="Path to traces JSON from evaluate_persona_retrieval.py. Auto-detects most recent if omitted.",
     )
     parser.add_argument(
         "--output-dir",

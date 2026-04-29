@@ -1,0 +1,17 @@
+{
+  "timestamp": "20260429_012338",
+  "git_commit": "8440857bb9eb2cf8beeef7883f86bcd13c1262ea",
+  "git_dirty": true,
+  "model_name": "gpt-5-mini",
+  "num_rows_requested": 5,
+  "num_rows_raw": 5,
+  "num_rows_deduped": 5,
+  "rows_removed_by_dedup": 0,
+  "questions_per_row": 3,
+  "batch_size": 10,
+  "seed": 42,
+  "dedup_threshold": 0.7,
+  "dedup_key_field": "entity_facts[0] (essay text)",
+  "output_csv": "datasets/custom_persona_retrieval/misleading_persona_dataset.csv",
+  "raw_csv": "datasets/custom_persona_retrieval/misleading_persona_dataset_raw.csv"
+}

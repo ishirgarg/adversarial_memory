@@ -8,18 +8,19 @@ folder. Run analyze_errors.py to grade and classify errors.
 Dataset structure:
   - Storage conversations: groups of `facts_per_group` essays, each group in its own
     conversation (grade=False). Memory is built up during this phase.
-  - Question conversations: TWO per dataset row, each containing a single graded query
-    (grade=True):
-      * base_question        — should be answered using the entity's memory
-      * misleading_question  — names a different person; model SHOULD abstain
+  - Question conversations: one per question in each row's `questions` list (typically
+    THREE per row). Each question is independently either:
+      * base (non-misleading) — names the entity; should be answered using memory
+      * misleading            — names a different person; model SHOULD abstain
 
 Output:
   traces_<timestamp>.json with:
     - run_metadata: configuration for this run
     - all_memories_at_time_of_questions: full memory store captured after evaluation
-    - dataset_rows: original CSV metadata aligned with question conversations
+    - dataset_rows: original CSV metadata
+    - question_specs: per-question metadata aligned with question conversations
     - evaluation_summary: all EvaluationResult/QueryTrace data from the Evaluator
-  graded_traces_<timestamp>.json: question conversations only, dataset metadata merged.
+  graded_traces_<timestamp>.json: question conversations only, per-question metadata merged.
 """
 
 import argparse
@@ -63,10 +64,7 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with open(csv_path, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
-        required = [
-            "entity", "distractor", "entity_facts",
-            "question", "misleading_question", "ground_truth_answer",
-        ]
+        required = ["entity", "entity_facts", "questions"]
         if not reader.fieldnames:
             raise ValueError("Dataset CSV missing header.")
         missing = [c for c in required if c not in reader.fieldnames]
@@ -86,13 +84,25 @@ def load_dataset(csv_path: Path) -> List[Dict[str, Any]]:
                     f"Row {i}: entity_facts must have exactly 1 element, "
                     f"got {len(facts_list)}. Regenerate the dataset."
                 )
+
+            questions_json = row.get("questions", "[]")
+            try:
+                questions_list = json.loads(questions_json)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Row {i}: questions is not valid JSON: {e}") from e
+            if not isinstance(questions_list, list) or len(questions_list) == 0:
+                raise ValueError(f"Row {i}: questions must be a non-empty list.")
+            for j, q in enumerate(questions_list):
+                for field in ("text", "is_misleading", "ground_truth_answer"):
+                    if field not in q:
+                        raise ValueError(
+                            f"Row {i} question {j}: missing required field {field!r}."
+                        )
+
             rows.append({
                 "entity": row.get("entity", ""),
-                "distractor": row.get("distractor", ""),
                 "entity_facts": facts_list,
-                "question": row["question"],
-                "misleading_question": row["misleading_question"],
-                "ground_truth_answer": row.get("ground_truth_answer", ""),
+                "questions": questions_list,
             })
     return rows
 
@@ -105,20 +115,19 @@ def build_chat_dataset(
     """Build a ChatDataset for evaluation.
 
     Storage conversations (grade=False) come first so memory is populated before
-    questions are asked. Question conversations (grade=True) follow — TWO per row
-    (base + misleading), shuffled together.
+    questions are asked. Question conversations (grade=True) follow — one per question
+    in the row's `questions` list (typically THREE per row), shuffled together.
 
     Storage facts and question order are independently shuffled with `seed` so
     runs are reproducible but not biased by CSV order.
 
     Returns (dataset, num_storage_convs, question_specs), where question_specs is a
-    list of dicts containing the row metadata + question_type for each question conv,
-    in the order they appear in the ChatDataset.
+    list of per-question dicts in the order they appear in the ChatDataset.
     """
     rng = random.Random(seed)
     conversations: List[ConversationData] = []
 
-    # Phase 1: storage conversations (essays)
+    # Phase 1: Storage conversations — shuffle essays, then chunk
     all_facts = [row["entity_facts"][0] for row in dataset_rows]
     storage_order = list(range(len(all_facts)))
     rng.shuffle(storage_order)
@@ -131,11 +140,19 @@ def build_chat_dataset(
         conversations.append(ConversationData(queries=[(fact, False) for fact in group]))
     num_storage_convs = len(groups)
 
-    # Phase 2: question conversations — two per row (base + misleading), shuffled together
+    # Phase 2: Question conversations — flatten 3 per row, then shuffle
     question_specs: List[Dict[str, Any]] = []
     for row in dataset_rows:
-        question_specs.append({**row, "question_type": "base", "_question": row["question"]})
-        question_specs.append({**row, "question_type": "misleading", "_question": row["misleading_question"]})
+        for q in row["questions"]:
+            is_misleading = bool(q["is_misleading"])
+            question_specs.append({
+                "entity": row["entity"],
+                "entity_facts": row["entity_facts"],
+                "distractor": q.get("distractor") or "",
+                "question_type": "misleading" if is_misleading else "base",
+                "ground_truth_answer": q.get("ground_truth_answer", ""),
+                "_question": q["text"],
+            })
     rng.shuffle(question_specs)
     for spec in question_specs:
         conversations.append(ConversationData(queries=[(spec["_question"], True)]))
@@ -170,7 +187,7 @@ def main() -> None:
     add_memory_system_args(parser)
     args = parser.parse_args()
     if args.shared_user_id == "eval_user":
-        args.shared_user_id = "misleading_persona_eval_user"
+        args.shared_user_id = "persona_retrieval_eval_user"
 
     api_key = resolve_api_key(args)
 
@@ -196,7 +213,7 @@ def main() -> None:
     print(
         f"Built ChatDataset: {num_storage_convs} storage conversations "
         f"({args.facts_per_group} essays each), {num_question_convs} question conversations "
-        f"(base + misleading per row)."
+        f"({num_question_convs / max(len(dataset_rows), 1):.1f} per row, mix of base + misleading)."
     )
 
     memory_system = create_memory_system(args, api_key)
@@ -282,7 +299,7 @@ def main() -> None:
         )
 
     print("=" * 80)
-    print("MISLEADING PERSONA EVALUATION COMPLETE")
+    print("PERSONA RETRIEVAL EVALUATION COMPLETE")
     print("=" * 80)
     print(f"Total conversations:  {summary.total_conversations}")
     print(f"Total queries:        {summary.total_queries}")
