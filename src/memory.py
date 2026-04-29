@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import mem0
+import requests
 
 from .types import Conversation, LLMResponse, Prompt
 
@@ -226,6 +227,343 @@ class AMEMMemorySystem:
                 line = f"{line} ({'; '.join(extras)})"
             parts.append(line)
         return parts
+
+
+class EverMemOSMemorySystem:
+    """
+    Memory system using EverMemOS / EverCore (https://github.com/EverMind-AI/EverOS).
+
+    Wraps EverCore's public v1 HTTP API for storing and retrieving long-term
+    conversational memory. Each turn is POSTed to /api/v1/memories; EverCore
+    accumulates messages and runs boundary detection to extract episodic
+    memories. Retrieval uses /api/v1/memories/search with the configured
+    method (keyword/vector/hybrid/agentic). finalize_conversation() calls
+    /api/v1/memories/flush to trigger extraction on any remaining buffered
+    messages.
+
+    Requires a running EverCore API server (default: http://localhost:1995).
+    """
+
+    def __init__(
+        self,
+        num_memories: int,
+        base_url: str = "http://localhost:1995",
+        shared_user_id: str | None = None,
+        retrieve_method: str = "hybrid",
+        memory_types: tuple[str, ...] = ("episodic_memory",),
+        clear_on_init: bool = True,
+        request_timeout: float = 500.0,
+    ):
+        self.num_memories = num_memories
+        self.base_url = base_url.rstrip("/")
+        self.shared_user_id = shared_user_id
+        self.retrieve_method = retrieve_method
+        self.memory_types = list(memory_types)
+        self.request_timeout = request_timeout
+        self._message_counter = 0
+
+        self._init_settings()
+        if clear_on_init and self.shared_user_id is not None:
+            self._delete_user(self.shared_user_id)
+
+    def _init_settings(self) -> None:
+        requests.put(
+            f"{self.base_url}/api/v1/settings",
+            json={},
+            timeout=self.request_timeout,
+        )
+
+    def _delete_user(self, user_id: str) -> None:
+        requests.post(
+            f"{self.base_url}/api/v1/memories/delete",
+            json={"user_id": user_id},
+            timeout=self.request_timeout,
+        )
+
+    def _user_id(self, conversation: Conversation) -> str:
+        return (
+            self.shared_user_id
+            if self.shared_user_id is not None
+            else str(conversation.conversation_id)
+        )
+
+    def _build_message(self, role: str, content: str, user_id: str) -> dict:
+        self._message_counter += 1
+        ts_ms = int(time.time() * 1000)
+        return {
+            "message_id": f"msg_{self._message_counter}_{ts_ms}",
+            "sender_id": user_id if role == "user" else "assistant",
+            "sender_name": "User" if role == "user" else "Assistant",
+            "role": role,
+            "timestamp": ts_ms,
+            "content": content,
+        }
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        user_id = self._user_id(conversation)
+        payload = {
+            "query": prompt,
+            "method": self.retrieve_method,
+            "memory_types": self.memory_types,
+            "top_k": self.num_memories,
+            "filters": {"user_id": user_id},
+        }
+        resp = requests.post(
+            f"{self.base_url}/api/v1/memories/search",
+            json=payload,
+            timeout=self.request_timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", {}) or {}
+
+        memories: list[dict] = []
+        for key in ("episodes", "profiles", "raw_messages"):
+            memories.extend(data.get(key) or [])
+        if not memories:
+            return ""
+
+        parts = []
+        for m in memories:
+            subject = m.get("subject") or ""
+            summary = m.get("summary") or ""
+            episode = m.get("episode") or m.get("content") or ""
+            line_parts = [p for p in (subject, summary, episode) if p]
+            line = " | ".join(line_parts) if line_parts else str(m)
+            parts.append(f"- {line}")
+        return "\n".join(parts)
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
+    ) -> None:
+        user_id = self._user_id(conversation_history)
+        messages = [
+            self._build_message("user", prompt, user_id),
+            self._build_message("assistant", response, user_id),
+        ]
+        requests.post(
+            f"{self.base_url}/api/v1/memories",
+            json={"user_id": user_id, "messages": messages},
+            timeout=self.request_timeout,
+        )
+
+    def finalize_conversation(self, conversation: Conversation) -> None:
+        user_id = self._user_id(conversation)
+        requests.post(
+            f"{self.base_url}/api/v1/memories/flush",
+            json={"user_id": user_id},
+            timeout=self.request_timeout,
+        )
+
+    def get_all_memories(
+        self, user_id: str | None = None, limit: int = 100
+    ) -> list[str]:
+        if user_id is None:
+            if self.shared_user_id is None:
+                raise ValueError(
+                    "get_all_memories() requires user_id when shared_user_id is not set"
+                )
+            user_id = self.shared_user_id
+
+        payload = {
+            "memory_type": "episodic_memory",
+            "filters": {"user_id": user_id},
+            "page": 1,
+            "page_size": min(limit, 100),
+        }
+        resp = requests.post(
+            f"{self.base_url}/api/v1/memories/get",
+            json=payload,
+            timeout=self.request_timeout,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("data", {}) or {}
+
+        out = []
+        for m in data.get("episodes") or data.get("memories") or []:
+            line_parts = [
+                m.get("subject") or "",
+                m.get("summary") or "",
+                m.get("episode") or m.get("content") or "",
+            ]
+            line = " | ".join(p for p in line_parts if p)
+            if line:
+                out.append(line)
+        return out
+
+
+class StructMemMemorySystem:
+    """
+    Memory system using StructMem, the structure-enriched variant of LightMem
+    (https://github.com/Cooperx521/LightMem).
+
+    StructMem extends LightMem with:
+    - Event-level extraction (factual + relational components, temporally bound)
+    - Cross-event hierarchical summarization stored in a separate retriever
+
+    Each turn is added via LightMem's add_memory pipeline; the most recent turn
+    is buffered so finalize_conversation can replay it with force_segment and
+    force_extract enabled, flushing any pending segments. After flushing,
+    finalize_conversation triggers cross-event summarization and the offline
+    update queue.
+
+    Wraps the public LightMemory class only. Requires the vendored LightMem
+    repo at <repo_root>/LightMem and the transformers/qdrant dependencies it
+    pulls in.
+    """
+
+    def __init__(
+        self,
+        num_memories: int,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o-mini",
+        base_url: Optional[str] = None,
+        segmenter_model: str = "bert-base-uncased",
+        segmenter_device: str = "cpu",
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_dimension: int = 384,
+        embedding_device: str = "cpu",
+        qdrant_path: str = "./structmem_qdrant",
+        collection_name: str = "structmem",
+        enable_summary: bool = True,
+        summary_time_window: int = 3600,
+        summary_top_k_seeds: int = 15,
+        offline_update_score_threshold: float = 0.9,
+        config_overrides: Optional[dict] = None,
+    ):
+        self.num_memories = num_memories
+        self.enable_summary = enable_summary
+        self.summary_time_window = summary_time_window
+        self.summary_top_k_seeds = summary_top_k_seeds
+        self.offline_update_score_threshold = offline_update_score_threshold
+
+        lightmem_dir = Path(__file__).parent.parent / "LightMem" / "src"
+        if str(lightmem_dir) not in sys.path:
+            sys.path.insert(0, str(lightmem_dir))
+
+        from lightmem.memory.lightmem import LightMemory  # type: ignore
+
+        resolved_api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
+
+        memory_manager_cfg: dict = {
+            "model": model,
+            "api_key": resolved_api_key,
+            "max_tokens": 20000,
+        }
+        if base_url:
+            memory_manager_cfg["openai_base_url"] = base_url
+
+        config: dict = {
+            "pre_compress": False,
+            "topic_segment": True,
+            "topic_segmenter": {
+                "model_name": "llmlingua-2",
+                "configs": {
+                    "model_name": segmenter_model,
+                    "device_map": segmenter_device,
+                },
+            },
+            "messages_use": "user_only",
+            "metadata_generate": True,
+            "text_summary": True,
+            "memory_manager": {
+                "model_name": "openai",
+                "configs": memory_manager_cfg,
+            },
+            "extract_threshold": 0.1,
+            "index_strategy": "embedding",
+            "text_embedder": {
+                "model_name": "huggingface",
+                "configs": {
+                    "model": embedding_model,
+                    "embedding_dims": embedding_dimension,
+                    "model_kwargs": {"device": embedding_device},
+                },
+            },
+            "retrieve_strategy": "embedding",
+            "embedding_retriever": {
+                "model_name": "qdrant",
+                "configs": {
+                    "collection_name": collection_name,
+                    "embedding_model_dims": embedding_dimension,
+                    "path": f"{qdrant_path}/{collection_name}",
+                    "on_disk": True,
+                },
+            },
+            "summary_retriever": {
+                "model_name": "qdrant",
+                "configs": {
+                    "collection_name": f"{collection_name}_summary",
+                    "embedding_model_dims": embedding_dimension,
+                    "path": f"{qdrant_path}/{collection_name}_summary",
+                    "on_disk": True,
+                },
+            },
+            "update": "offline",
+            "extraction_mode": "event",
+        }
+
+        if config_overrides:
+            config.update(config_overrides)
+
+        self._lightmem = LightMemory.from_config(config)
+        self._buffered_turn: Optional[tuple[str, str]] = None
+
+    def _add_turn(self, user_msg: str, assistant_msg: str, force: bool) -> None:
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        messages = [
+            {"role": "user", "content": user_msg, "time_stamp": timestamp},
+            {"role": "assistant", "content": assistant_msg, "time_stamp": timestamp},
+        ]
+        self._lightmem.add_memory(
+            messages=messages,
+            METADATA_GENERATE_PROMPT=None,
+            force_segment=force,
+            force_extract=force,
+        )
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        result = self._lightmem.retrieve(query=prompt, limit=self.num_memories)
+        if isinstance(result, list):
+            return "\n".join(str(r) for r in result)
+        return result or ""
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
+    ) -> None:
+        if self._buffered_turn is not None:
+            prev_user, prev_asst = self._buffered_turn
+            self._add_turn(prev_user, prev_asst, force=False)
+        self._buffered_turn = (prompt, response)
+
+    def finalize_conversation(self, conversation: Conversation) -> None:
+        if self._buffered_turn is not None:
+            last_user, last_asst = self._buffered_turn
+            self._add_turn(last_user, last_asst, force=True)
+            self._buffered_turn = None
+
+        if self.enable_summary:
+            self._lightmem.summarize(
+                retrieval_scope="global",
+                time_window=self.summary_time_window,
+                top_k_seeds=self.summary_top_k_seeds,
+                process_all=True,
+            )
+
+        self._lightmem.construct_update_queue_all_entries()
+        self._lightmem.offline_update_all_entries(
+            score_threshold=self.offline_update_score_threshold
+        )
+
+    def get_all_memories(self, limit: int = 1000) -> list[str]:
+        entries, _ = self._lightmem.embedding_retriever.scroll(limit=limit)
+        out = []
+        for entry in entries or []:
+            payload = entry.get("payload", {}) if isinstance(entry, dict) else {}
+            time_stamp = payload.get("time_stamp", "")
+            memory = payload.get("memory", "")
+            if memory:
+                out.append(f"{time_stamp} {memory}".strip())
+        return out
 
 
 class SimpleMemMemorySystem:

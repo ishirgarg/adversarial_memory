@@ -31,6 +31,8 @@ from .memory import (
     Mem0MemorySystem,
     AMEMMemorySystem,
     SimpleMemMemorySystem,
+    EverMemOSMemorySystem,
+    StructMemMemorySystem,
 )
 
 # Chat systems
@@ -78,6 +80,8 @@ __all__ = [
     "Mem0MemorySystem",
     "AMEMMemorySystem",
     "SimpleMemMemorySystem",
+    "EverMemOSMemorySystem",
+    "StructMemMemorySystem",
     # Chat
     "ChatSystem",
     # Dataset
