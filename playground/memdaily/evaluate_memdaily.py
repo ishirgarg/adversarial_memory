@@ -55,7 +55,7 @@ MEMDAILY_URL = (
     "https://raw.githubusercontent.com/nuster1128/MemSim/master/"
     "data_generation/final_dataset/memdaily.json"
 )
-DEFAULT_DATASET = PARENT_DIR / "datasets" / "memdaily.json"
+DEFAULT_DATASET = PARENT_DIR / "datasets" / "long_hop" / "memdaily.json"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "results"
 
 QUESTION_TYPE_ALIASES = {
