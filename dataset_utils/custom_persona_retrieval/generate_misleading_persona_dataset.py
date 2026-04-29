@@ -3,22 +3,25 @@ Generate a misleading-persona dataset for testing memory grounding to specific i
 
 Pipeline:
 1) Generate entities (named people with rich, idiosyncratic personas)
-2) For each entity, produce a personal essay (5-8 sentences) embedding several
+2) For each entity, produce a personal essay (10-15 sentences) embedding several
    memorable, specific facts about that person
-3) Generate a base question — first-person, asking about THAT entity by name,
-   answerable from the essay's specific details
-4) Generate a misleading question — identical scenario but asking about a
-   DIFFERENT named person (the "distractor"). Correct behavior is to abstain.
-5) Deduplicate with MinHash LSH (threshold=0.7) on the essay text
-6) Save raw CSV (<name>_raw.csv) and deduplicated CSV (<name>.csv)
+3) Generate 3 questions per entity. Each question is independently EITHER:
+     - non-misleading: first-person, asks about THAT entity by name (answerable
+       from the essay's specific details), OR
+     - misleading: first-person, asks about a DIFFERENT named person (the
+       "distractor") who has no presence in the essay. Correct behavior is to
+       abstain.
+4) Deduplicate with MinHash LSH (threshold=0.7) on the essay text
+5) Save raw CSV (<name>_raw.csv) and deduplicated CSV (<name>.csv)
 
 CSV columns:
-  entity                -- e.g. "Maya Patel"
-  distractor            -- the unrelated name used in the misleading question
-  entity_facts          -- JSON list with exactly 1 essay about the entity
-  question              -- base first-person question naming `entity`
-  misleading_question   -- first-person question naming `distractor` instead
-  ground_truth_answer   -- correct answer to the base question (drawn from essay)
+  entity        -- e.g. "Maya Patel"
+  entity_facts  -- JSON list with exactly 1 essay about the entity
+  questions     -- JSON list of exactly 3 question objects, each with fields:
+                     text                 (string)
+                     is_misleading        (bool)
+                     distractor           (string or null; non-null iff misleading)
+                     ground_truth_answer  (string)
 """
 
 import argparse
@@ -35,9 +38,10 @@ from typing import Any, Dict, List
 from dotenv import load_dotenv
 from openai import OpenAI
 
-MODEL_NAME = "gpt-4.1-mini"
+MODEL_NAME = "gpt-5-mini"
 MAX_RETRIES = 3
-BATCH_SIZE = 10
+BATCH_SIZE = 20
+QUESTIONS_PER_ROW = 3
 
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent.parent
@@ -93,7 +97,6 @@ def _chat_json(client: OpenAI, prompt: str) -> Any:
     response = client.chat.completions.create(
         model=MODEL_NAME,
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
         response_format={"type": "json_object"},
     )
     content = response.choices[0].message.content
@@ -104,63 +107,125 @@ def _chat_json(client: OpenAI, prompt: str) -> Any:
 
 def _make_batch_prompt(specs: List[Dict[str, Any]]) -> str:
     return f"""Generate misleading-persona datapoints. Each datapoint is about a SPECIFIC named
-person, embedded in a rich essay, paired with a base question (about that person) and a
-misleading question (about a DIFFERENT person, who has no presence in the essay).
+person, embedded in a rich essay (10-15 sentences). Each datapoint has exactly 3 questions.
+Each question is independently EITHER non-misleading (asks about the entity by name) OR
+misleading (asks about a DIFFERENT named person — the "distractor" — who has no presence
+in the essay).
 
 For each spec below, generate:
 
-1. "essay": a natural personal essay about the entity (5-8 sentences).
+1. "essay": a natural personal essay about the entity (10-15 sentences).
    - Written in third person, naming the entity (e.g. "Maya Patel"). Pronouns are fine
      after the first mention.
-   - Embed several SPECIFIC, memorable, idiosyncratic facts: a daily ritual, an unusual
-     hobby, a hard constraint (allergy/aversion/rule), a strong preference, a quirky
-     possession, a rule of thumb they follow. These are what the question will probe.
+   - Embed MANY specific, memorable, idiosyncratic facts: daily rituals, unusual hobbies,
+     hard constraints (allergies/aversions/rules), strong preferences, quirky possessions,
+     rules of thumb. Aim for at least 4-5 distinct facts so different questions can probe
+     different details.
    - Tone: casual, like a journal entry or chat message — not a formal bio.
    - Do NOT use first-person voice ("I", "me", "my", "we").
-   - Do NOT mention the distractor name anywhere in the essay.
+   - Do NOT mention any of the distractor names anywhere in the essay.
 
-2. "question": a first-person question that explicitly names the entity.
-   - The asker wants advice or info ABOUT the entity (e.g. what to get them, what to
-     avoid, where to take them, whether they'd enjoy something).
-   - Should be answerable from the essay's specific details — NOT from generic norms.
-   - Phrased naturally, e.g. "What should I get Maya Patel for her birthday?"
-   - The question must NOT smuggle the answer into itself as an assumption.
-     BAD:  "What apple dessert can I give Rob that won't make him itch?"
-           (assumes the asker already knows about the allergy)
-     GOOD: "What dessert should I make for Rob?"
-           (open; the essay's allergy info is what makes the answer specific)
+2. "questions": a list of EXACTLY 3 question objects, in the order given by
+   spec.question_slots. Each slot specifies whether that question is misleading and, if
+   so, the distractor name to use.
 
-3. "misleading_question": the SAME question reworded to ask about the distractor name
-   instead of the entity. Replace ONLY the named person.
-   - Example: if base question is "What should I get Maya Patel for her birthday?",
-     misleading_question is "What should I get Liam Carter for her birthday?".
-   - Keep first-person voice and all other wording identical.
+   For each slot:
 
-4. "ground_truth_answer": a short answer to the base question, drawn from specific
-   details in the essay. 1-2 sentences. This is what a memory-aware system should
-   return when asked the base question.
+   If is_misleading=false:
+     - "text": a first-person question that explicitly names the entity by their full name.
+       The asker wants advice or info ABOUT the entity (e.g. what to get them, what to
+       avoid, where to take them, whether they'd enjoy something).
+     - The question must be answerable from a SPECIFIC detail in the essay — NOT from
+       generic norms.
+     - Phrased naturally. Must NOT smuggle the answer into itself as an assumption.
+       BAD:  "What apple dessert can I give Maya that won't make her itch?"
+             (assumes the asker already knows about the allergy)
+       GOOD: "What dessert should I make for Maya?"
+             (open; the essay's allergy info is what makes the answer specific)
+     - "ground_truth_answer": short answer (1-2 sentences) drawn from specific essay
+       details. This is what a memory-aware system should return.
+     - "distractor": null.
+
+   If is_misleading=true:
+     - "text": a first-person question that names the GIVEN distractor (NOT the entity).
+       Same kind of advice/info question as the non-misleading case, but asked about the
+       distractor. The entity's name must NOT appear in the question.
+     - "ground_truth_answer": "I don't have information about <distractor name>."
+       (Correct behavior is to abstain — the asker has no info about this person.)
+     - "distractor": the distractor name from the spec slot.
+
+   The 3 questions should probe DIFFERENT angles — don't repeat the same wording or topic
+   across slots. If multiple slots are non-misleading, each should probe a different fact
+   from the essay.
 
 Return strict JSON with key "rows", a list of objects:
 - row_id (int)
 - entity (string, same as input)
-- distractor (string, same as input)
 - essay (string)
-- question (string)
-- misleading_question (string)
-- ground_truth_answer (string)
+- questions (list of exactly 3 objects with fields: text, is_misleading, distractor,
+  ground_truth_answer)
 
 Rules:
-1) The essay is third-person, names the entity, never mentions the distractor.
-2) The base question is first-person and names the entity exactly.
-3) The misleading question is identical to the base question except the entity name
-   is replaced with the distractor name.
-4) The base question must NOT embed its own answer as an assumption.
-5) The ground_truth_answer must be specifically supported by the essay.
-6) Output ONLY valid JSON.
+1) The essay is 10-15 sentences, third-person, names the entity, and never mentions any
+   distractor name from any slot.
+2) Each non-misleading question names the entity exactly and never names any distractor.
+3) Each misleading question names that slot's distractor exactly and never names the
+   entity.
+4) Non-misleading questions must NOT embed their own answers as assumptions.
+5) Each non-misleading ground_truth_answer is supported by specific essay details.
+6) Each misleading ground_truth_answer indicates the system should abstain.
+7) Output ONLY valid JSON.
 
 Input specs:
 {json.dumps(specs, ensure_ascii=False)}
 """.strip()
+
+
+def _validate_question(
+    q: Dict[str, Any],
+    slot: Dict[str, Any],
+    entity: str,
+    essay: str,
+    row_id: int,
+    slot_idx: int,
+) -> Dict[str, Any]:
+    text = str(q.get("text", "")).strip()
+    if not text:
+        raise ValueError(f"row_id {row_id} q{slot_idx}: empty question text.")
+
+    is_misleading = bool(slot["is_misleading"])
+    expected_distractor = slot["distractor"]
+
+    if is_misleading:
+        if expected_distractor is None:
+            raise ValueError(f"row_id {row_id} q{slot_idx}: spec is misleading but distractor is null.")
+        if expected_distractor.lower() not in text.lower():
+            raise ValueError(
+                f"row_id {row_id} q{slot_idx}: misleading question does not contain "
+                f"distractor {expected_distractor!r}."
+            )
+        if entity.lower() in text.lower():
+            raise ValueError(
+                f"row_id {row_id} q{slot_idx}: misleading question must not name the entity."
+            )
+        distractor_out: Any = expected_distractor
+    else:
+        if entity.lower() not in text.lower():
+            raise ValueError(
+                f"row_id {row_id} q{slot_idx}: non-misleading question must name the entity {entity!r}."
+            )
+        distractor_out = None
+
+    gt = str(q.get("ground_truth_answer", "")).strip()
+    if not gt:
+        raise ValueError(f"row_id {row_id} q{slot_idx}: missing ground_truth_answer.")
+
+    return {
+        "text": text,
+        "is_misleading": is_misleading,
+        "distractor": distractor_out,
+        "ground_truth_answer": gt,
+    }
 
 
 def generate_batch(
@@ -186,23 +251,31 @@ def generate_batch(
                 if not essay:
                     raise ValueError(f"row_id {spec['row_id']}: empty essay.")
                 entity = str(row.get("entity", spec["entity"])).strip()
-                distractor = str(row.get("distractor", spec["distractor"])).strip()
-                question = str(row.get("question", "")).strip()
-                misleading = str(row.get("misleading_question", "")).strip()
-                if not (question and misleading):
-                    raise ValueError(f"row_id {spec['row_id']}: missing question(s).")
-                # Sanity: distractor must not appear in essay
-                if distractor.lower() in essay.lower():
+
+                slots = spec["question_slots"]
+                for slot in slots:
+                    if slot["is_misleading"] and slot["distractor"].lower() in essay.lower():
+                        raise ValueError(
+                            f"row_id {spec['row_id']}: distractor {slot['distractor']!r} "
+                            "leaked into essay."
+                        )
+
+                qs = row.get("questions")
+                if not isinstance(qs, list) or len(qs) != QUESTIONS_PER_ROW:
                     raise ValueError(
-                        f"row_id {spec['row_id']}: distractor name {distractor!r} leaked into essay."
+                        f"row_id {spec['row_id']}: expected {QUESTIONS_PER_ROW} questions, "
+                        f"got {len(qs) if isinstance(qs, list) else 'non-list'}."
                     )
+
+                validated_qs = [
+                    _validate_question(qs[i], slots[i], entity, essay, spec["row_id"], i)
+                    for i in range(QUESTIONS_PER_ROW)
+                ]
+
                 result.append({
                     "entity": entity,
-                    "distractor": distractor,
                     "entity_facts": json.dumps([essay]),
-                    "question": question,
-                    "misleading_question": misleading,
-                    "ground_truth_answer": str(row.get("ground_truth_answer", "")).strip(),
+                    "questions": json.dumps(validated_qs, ensure_ascii=False),
                 })
             return result
         except Exception as e:
@@ -213,19 +286,29 @@ def generate_batch(
 
 
 def build_specs(num_rows: int, rng: random.Random) -> List[Dict[str, Any]]:
-    """One spec per row. Each spec gets an entity name, a distractor name (different),
-    and a persona flavor hint."""
+    """One spec per row. Each spec gets an entity name, a persona flavor hint, and 3
+    question slots. Each slot is independently misleading-or-not (50/50). Misleading
+    slots get a distractor (different from entity, distinct across the row's slots)."""
     specs = []
     for i in range(num_rows):
         entity = rng.choice(NAME_POOL)
         distractor_pool = [n for n in NAME_POOL if n != entity]
-        distractor = rng.choice(distractor_pool)
+        # Pre-sample distinct distractor candidates for the misleading slots so the
+        # essay never has to pretend a name doesn't exist twice over.
+        candidate_distractors = rng.sample(distractor_pool, QUESTIONS_PER_ROW)
+        question_slots = []
+        for j in range(QUESTIONS_PER_ROW):
+            is_misleading = rng.random() < 0.5
+            question_slots.append({
+                "is_misleading": is_misleading,
+                "distractor": candidate_distractors[j] if is_misleading else None,
+            })
         flavor = rng.choice(PERSONA_FLAVORS)
         specs.append({
             "row_id": i,
             "entity": entity,
-            "distractor": distractor,
             "persona_flavor": flavor,
+            "question_slots": question_slots,
         })
     return specs
 
@@ -253,14 +336,7 @@ def generate_dataset(
         all_rows.extend(batch_rows)
         print(f"  Total rows so far: {len(all_rows)}")
 
-    fieldnames = [
-        "entity",
-        "distractor",
-        "entity_facts",
-        "question",
-        "misleading_question",
-        "ground_truth_answer",
-    ]
+    fieldnames = ["entity", "entity_facts", "questions"]
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
@@ -311,6 +387,7 @@ def generate_dataset(
         "num_rows_raw": len_raw,
         "num_rows_deduped": len(all_rows),
         "rows_removed_by_dedup": len_raw - len(all_rows),
+        "questions_per_row": QUESTIONS_PER_ROW,
         "batch_size": batch_size,
         "seed": seed,
         "dedup_threshold": 0.7,
@@ -331,10 +408,16 @@ def generate_dataset(
     for ent, count in sorted(entity_counts.items(), key=lambda x: -x[1])[:10]:
         print(f"  {ent}: {count}")
 
-    # Sanity: distractor != entity
-    bad = sum(1 for r in all_rows if r["distractor"].strip().lower() == r["entity"].strip().lower())
-    if bad:
-        print(f"\nWARNING: {bad} rows have distractor == entity.")
+    # Question-type distribution
+    n_misleading = 0
+    n_total_q = 0
+    for r in all_rows:
+        for q in json.loads(r["questions"]):
+            n_total_q += 1
+            if q["is_misleading"]:
+                n_misleading += 1
+    print(f"\nQuestion totals: {n_total_q} ({n_misleading} misleading, "
+          f"{n_total_q - n_misleading} non-misleading).")
 
 
 def main() -> None:
