@@ -114,6 +114,27 @@ def parse_csv_arg(raw: str) -> List[str]:
     return [part for part in parts if part]
 
 
+def parse_support_set_plan(raw: str) -> Dict[int, int]:
+    plan: Dict[int, int] = {}
+    for part in parse_csv_arg(raw):
+        size_text, sep, count_text = part.partition(":")
+        if not sep:
+            raise ValueError(
+                "Invalid --support-set-plan entry "
+                f"'{part}'. Expected SIZE:COUNT, for example 2:33,4:33,8:34."
+            )
+        support_set_size = int(size_text)
+        count = int(count_text)
+        if support_set_size <= 0 or count <= 0:
+            raise ValueError("--support-set-plan sizes and counts must be positive integers.")
+        if support_set_size in plan:
+            raise ValueError(
+                f"Duplicate support_set_size {support_set_size} in --support-set-plan."
+            )
+        plan[support_set_size] = count
+    return plan
+
+
 def resolve_model_name(model_name: str) -> str:
     return MODEL_ALIASES.get(model_name, model_name)
 
@@ -192,6 +213,7 @@ def load_memdaily_examples(
     domains: Optional[Iterable[str]] = None,
     limit: Optional[int] = None,
     seed: int = 7,
+    support_set_plan: Optional[Dict[int, int]] = None,
 ) -> List[MemDailyExample]:
     with open(dataset_path, "r", encoding="utf-8") as f:
         raw = json.load(f)
@@ -226,8 +248,36 @@ def load_memdaily_examples(
                     )
                 )
 
-    rng = random.Random(seed)
-    rng.shuffle(examples)
+    if support_set_plan:
+        selected_examples: List[MemDailyExample] = []
+        selected_counts: Counter[int] = Counter()
+        for example in examples:
+            target_count = support_set_plan.get(example.support_set_size)
+            if target_count is None:
+                continue
+            if selected_counts[example.support_set_size] >= target_count:
+                continue
+            selected_examples.append(example)
+            selected_counts[example.support_set_size] += 1
+            if all(selected_counts[size] >= count for size, count in support_set_plan.items()):
+                break
+
+        missing_counts = {
+            size: count - selected_counts[size]
+            for size, count in support_set_plan.items()
+            if selected_counts[size] < count
+        }
+        if missing_counts:
+            raise ValueError(
+                "Not enough MemDaily examples matched --support-set-plan after filtering: "
+                + ", ".join(
+                    f"{size}->{missing} more needed" for size, missing in sorted(missing_counts.items())
+                )
+            )
+        examples = selected_examples
+    else:
+        rng = random.Random(seed)
+        rng.shuffle(examples)
     if limit is not None:
         examples = examples[:limit]
     return examples
@@ -404,13 +454,16 @@ class Mem0Harness(BaseHarness):
         mem0_ollama_base_url: Optional[str] = None,
     ):
         super().__init__(llm_model=llm_model, api_key=api_key, retrieval_limit=retrieval_limit, work_dir=work_dir)
+        uid = uuid4().hex
+        self.mem0_dir = self.work_dir / f"mem0_home_{uid}"
+        self.mem0_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["MEM0_DIR"] = str(self.mem0_dir)
         os.environ["MEM0_TELEMETRY"] = "False"
         import mem0
         from mem0.configs.base import MemoryConfig
         from mem0.embeddings.configs import EmbedderConfig
         from mem0.llms.configs import LlmConfig
 
-        uid = uuid4().hex
         self.user_id = f"memdaily_{uid}"
         self.qdrant_path = self.work_dir / f"qdrant_{uid}"
         self.history_db_path = self.work_dir / f"history_{uid}.db"
@@ -472,6 +525,10 @@ class Mem0Harness(BaseHarness):
             pass
         try:
             self.history_db_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        try:
+            shutil.rmtree(self.mem0_dir, ignore_errors=True)
         except Exception:
             pass
 
@@ -640,6 +697,7 @@ def run_system(
     mem0_embedding_provider: Optional[str] = None,
     mem0_embedding_model: Optional[str] = None,
     mem0_ollama_base_url: Optional[str] = None,
+    support_set_plan: Optional[Dict[int, int]] = None,
 ) -> Dict[str, Any]:
     judge = Judge(api_key=api_key, model=judge_model)
     traces: List[ExampleTrace] = []
@@ -729,6 +787,7 @@ def run_system(
             "llm_model": llm_model,
             "judge_model": judge_model,
             "num_examples": len(examples),
+            "support_set_plan": support_set_plan or {},
             "mem0_llm_provider": mem0_llm_provider,
             "mem0_llm_model": mem0_llm_model,
             "mem0_embedding_provider": mem0_embedding_provider,
@@ -871,6 +930,15 @@ def main() -> None:
         default=30,
         help="Maximum number of examples to evaluate after filtering/shuffling.",
     )
+    parser.add_argument(
+        "--support-set-plan",
+        type=str,
+        default="",
+        help=(
+            "Optional exact support_set_size selection plan in dataset order, formatted as "
+            "SIZE:COUNT pairs, for example 2:33,4:33,8:34."
+        ),
+    )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument(
         "--llm-model",
@@ -947,15 +1015,26 @@ def main() -> None:
 
     question_types = resolve_question_types(args.question_types)
     domains = parse_csv_arg(args.domains) if args.domains else None
+    support_set_plan = parse_support_set_plan(args.support_set_plan)
     examples = load_memdaily_examples(
         dataset_path=dataset_path,
         question_types=question_types,
         domains=domains,
         limit=args.limit,
         seed=args.seed,
+        support_set_plan=support_set_plan or None,
     )
     if not examples:
         raise ValueError("No MemDaily examples matched the provided filters.")
+    if support_set_plan:
+        selected_counts = Counter(example.support_set_size for example in examples)
+        print(
+            "Selected support_set_size counts: "
+            + ", ".join(
+                f"{size}={selected_counts[size]}/{count}"
+                for size, count in sorted(support_set_plan.items())
+            )
+        )
 
     resolved_llm_model = resolve_model_name(args.llm_model)
     resolved_judge_model = resolve_model_name(args.judge_model)
@@ -986,6 +1065,7 @@ def main() -> None:
             mem0_embedding_provider=args.mem0_embedding_provider,
             mem0_embedding_model=args.mem0_embedding_model,
             mem0_ollama_base_url=args.mem0_ollama_base_url,
+            support_set_plan=support_set_plan or None,
         )
         print_summary(result["summary"])
         save_results(result, output_dir=output_dir, system=system)

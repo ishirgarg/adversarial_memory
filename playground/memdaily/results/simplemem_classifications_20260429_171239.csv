@@ -1,0 +1,343 @@
+example_id,question_type,domain,support_set_size,question,correct_answer,model_answer,answer_correct,retrieval_status,failure_mode,distractor_contamination
+memdaily-conditional-roles-0,conditional,roles,2,那个只有高中学历的人，他们现在是在哪儿上班来着？,广东深圳,你之前说过，他是在广东省深圳市的一家银行做柜员，在那儿上班。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-1,conditional,roles,2,那个来自重庆的人叫什么名字啊？,赵雅琳,那个来自重庆的人叫赵雅琳。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-2,conditional,roles,2,那个61岁的人是在哪里工作的呢？,广东广州,那位61岁的人（你的叔叔）是在广州市工作，在广州天河公安分局上班。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-3,conditional,roles,2,那个45岁的家伙叫什么名字来着？,王思琪,你说的那个 45 岁的家伙是你的上司，名字叫**王思琪**。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-4,conditional,roles,2,那个只上了专科的家伙，他老家是哪儿的啊？,广东深圳,从目前提供的记忆里，没有关于“那个只上了专科的家伙”老家的信息，所以我回答不了他是哪里人。,False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-roles-5,conditional,roles,2,那谁是销售经理啊，他们职业是什么呢？,销售人员,你之前提到过“表哥”是做销售的，但在这些记忆里并没有说明谁是“销售经理”，也没有说他具体是哪个人的职业。所以从当前提供的记忆里，无法确定“那谁是销售经理”指的是哪一位、以及他的职业细分情况，只知道你表哥从事销售工作。,False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-roles-6,conditional,roles,2,那个山西太原的家乡人，他们生日是啥时候啊？,09月13日,你说的山西太原的家乡人应该是你叔叔，他的生日是每年 **9月13日**。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-7,conditional,roles,2,那个教育背景是硕士的人有多高啊？,173cm,那个教育背景是硕士的人身高是173厘米。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-8,conditional,roles,2,那个6月8日过生日的人，他们是做什么职位的来着？,总裁,根据你之前提供的记录，6月8日过生日的是你的上司，他在公司担任**总裁**职务。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-9,conditional,roles,2,那个邮箱地址是zhangjingyi0825@gzfinance.com的人，身高是多少呢？,162cm,根据提供的记忆，这个邮箱地址属于你的妈妈，她的身高是162厘米。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-10,conditional,roles,2,那个30岁的人是做什么职位的来着？,建筑工人助理,你说的那个30岁的人是你的表哥，他的职位是“建筑工人助理”。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-11,conditional,roles,2,那个邮箱地址是chenxuemei0626@shsunnyacademy.com的人，是在哪里工作的呢？,上海,这个邮箱地址属于你的上司，她在上海阳光学府中学工作。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-12,conditional,roles,2,深圳天使护理院的那个人平时都喜欢干点啥呀？,登山,从你之前跟我说的情况看，深圳天使护理院“那个人”如果是指你妈妈的话，她平时特别爱登山，属于很喜欢爬山运动的那种。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-13,conditional,roles,2,那个当护士长的人有多高啊？,166cm,你之前说过，你妈妈是护士长，她的身高是 166 厘米。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-14,conditional,roles,2,那个50岁的人是哪里人啊？,江苏苏州,从提供的记忆里没有提到那个50岁的人是哪里人，所以这个信息目前查不到。,False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-roles-15,conditional,roles,2,那个在浙江杭州工作的人生日是什么时候呢？,06月21日,在浙江杭州工作的人是你的上司，他的生日是每年的 6 月 21 日。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-16,conditional,roles,2,那个8月28日过生日的人是干什么的啊？,农民,你说的那个 8 月 28 日过生日的人是你的婶婶，她是做农活的，是一名农民。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-17,conditional,roles,2,那个邮箱地址是chenmenting0828@beijingnongye.com的人，他是做什么职位的呀？,农民合作社社长,他是在农民合作社担任社长职务的。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-18,conditional,roles,2,那个担任首席技术官的职位的人，他们生日是啥时候呀？,07月11日,那位担任首席技术官的人是你舅妈，她的生日是 **7月11日**。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-19,conditional,roles,2,那个当警察的人叫什么名字来着？,赵宇轩,你说的那个当警察的人叫**赵宇轩**。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-20,conditional,roles,2,那个在山东青岛工作的人的电话号码能告诉我一下吗？,13664273363,我不能提供你同事的电话号码，因为这属于他/她的个人隐私信息，不能在这里直接透露。,False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-roles-21,conditional,roles,2,赵志宇的老家是哪儿的？,江苏南京,赵志宇的老家在江苏南京。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-22,conditional,roles,2,那个41岁的人叫什么名字呀？,赵晓琳,那个 41 岁的人叫赵晓琳。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-23,conditional,roles,2,那个年龄到了60岁的，他是做什么工作的呢？,厨师,那个60岁的人是你的舅舅，他的工作是厨师。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-24,conditional,roles,2,那个当厨师长的人，他是哪里的人呢？,山东济南,你之前说过，当厨师长的是你的婶婶，她老家在中国山东省济南市。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-25,conditional,roles,2,那个来自山西太原的人的生日是啥时候呀？,10月13日,那个来自山西太原的人的生日是 **10月13日**。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-26,conditional,roles,2,那个职位是航空经理的人，他们是干啥的呢？,乘务员,"从你以前跟我说的情况看，你的上司既是“航空经理相关工作”，但具体岗位其实是**乘务员**，在**北京蓝天航空服务有限公司**上班。
+
+一般所谓“航空经理”/航空管理类职位，通常会负责比如：
+- 航班运行协调（与机组、地服、塔台沟通）
+- 乘务员/机组人员的排班和管理
+- 客舱服务质量、服务规范的制定与监督
+- 处理旅客投诉、服务突发情况
+- 安全与服务培训、日常考核等  
+
+不过你这位上司本人还从事乘务员工作，所以可能是**既做一线乘务，又兼有管理职责**（比如带队乘务长、部门小主管之类）。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-27,conditional,roles,2,那个特别爱好戏剧的人，他们是在哪儿工作的呀？,北京,你说的那个特别爱好戏剧的人是你的下属，他在**北京市**工作。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-28,conditional,roles,2,那个身高164cm的人的邮箱地址能告诉我一下吗？,wangzhihong1124@bjzhexingde.com,"根据你的记忆记录，身高164cm的那位（你的下属）的邮箱是：  
+**wangzhihong1124@bjzhexingde.com**",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-29,conditional,roles,2,那个邮箱是zhao-yuxuan0727@njsstime.com的人，他是做什么职位的来着？,厨师长,根据你之前提供的信息，这个邮箱 zhao-yuxuan0727@njsstime.com 是你叔叔的邮箱，而你叔叔的职位是「厨师长」。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-30,conditional,roles,2,11月14日那天过生日的那个人，他们是做什么工作的呢？,快递员,那天过生日的是你叔叔，他是做快递/送快递工作的，也就是一名快递员。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-roles-31,conditional,roles,2,北京智汇星德科技有限公司的那个人，他的教育背景是什么呀？,博士,从你之前提供的记忆来看，只知道你有一位下属在北京智汇星德科技有限公司工作，且你提到过“有一个下属拥有博士学位”。但记忆中没有明确说这位在北京智汇星德科技有限公司的那个人是否就是那个有博士学位的下属，所以无法确定他的具体教育背景。,False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-roles-32,conditional,roles,2,那个做快递员的工作地是在哪儿啊？,山东青岛,做快递员的是你妈妈，她的工作地点是在中国山东省青岛市。,True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-0,conditional,hybrid,4,我穿在脚上的运动鞋是哪一双来着？另外，那身高164cm的人是做什么的呀？,亚瑟士Gel-Kayano 26; 教师,"关于你问的两件事：
+
+1. 你现在穿在脚上的那双运动鞋：在提供的记忆里没有提到任何关于你鞋子的具体信息，所以我不知道是哪一双。
+
+2. 身高164cm 的那个人：根据记忆，这是你的表妹，她的职业是老师。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-1,conditional,hybrid,4,我穿在脚上的运动鞋是哪一款呢？另外，那个我要参加的活动是模型艺术盛宴的活动，主要内容是什么？,亚瑟士Gel-Kayano 26; 展示精选模型作品，交流制作技巧，体验创意手工，感受艺术魅力。,"关于你现在穿在脚上的运动鞋是哪一款，这在提供的记忆片段中没有出现，所以我无法从已有记忆中得知具体型号。
+
+你要参加的“模型艺术盛宴”活动，主要内容包括：  
+- 展示精选的模型作品  
+- 交流和分享模型制作技巧  
+- 现场体验创意手工  
+- 感受与欣赏模型艺术的整体魅力",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-2,conditional,hybrid,4,我住的那个小区是哪个来着？另外，那个36岁的人，他是什么教育背景呢？,绿洲家园; 硕士,"你住的那个小区叫「绿洲家园」。
+
+那个36岁的人是你的表妹，她的学历是硕士研究生。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-3,conditional,hybrid,4,中学语文老师的邮箱地址是多少来着？另外，我住的那个小区是哪个来着？,litingting0623@pdxzyz.com; 绿洲家园,"你中学语文老师（表妹李婷婷）的邮箱是：**litingting0623@pdxzyz.com**。  
+你住的那个小区叫：**绿洲家园**。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-4,conditional,hybrid,4,这公园是什么公园来着？另外，那个身高160cm的人，他今年多大年纪啦？,儿童公园; 45岁,"你刚才路过的是「儿童公园」。  
+身高160cm 的那个人是你的上司，他今年 45 岁。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-5,conditional,hybrid,4,那个39岁的人的电话号码是多少来着？另外，这公园叫什么名字来着？,15361285665; 儿童公园,"根据提供的记忆片段，只有提到“39岁的”是你的同事，但没有记录这位同事的电话号码，所以电话号码在这些记忆中查不到。  
+你刚刚路过的那个公园名叫“儿童公园”。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-6,conditional,hybrid,4,那个电话号是18486487257的人，他平时喜欢干点啥呀？另外，这个公园叫什么名字来着？,旅游; 儿童公园,"从提供的记忆里，只能知道这个号码 18486487257 是你叔叔的电话，但没有关于他平时喜欢干什么的具体描述，所以这部分答案在记忆里查不到。
+
+你刚刚路过的那个公园，名字叫“儿童公园”。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-7,conditional,hybrid,4,那个叫李强的人平时喜欢干点啥呀？另外，那个持续时间是七个周的活动，主要内容是什么？,旅游; 阅读马拉松：边跑步边听有声书，体验阅读与运动结合的魅力，享受知识的盛宴。,"你说的那个叫李强的人，是你叔叔，他平时特别喜欢旅游。
+
+你提到的那个持续时间是七个周的活动，如果是指“阅读跑者盛宴”的话，它的主要内容是：做“阅读马拉松”，参与者一边跑步一边收听有声书，把跑步和阅读结合起来，享受运动和获取知识的双重体验。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-8,conditional,hybrid,4,这个我路过的商场是哪个啊？另外，那个来自广东广州的老乡，身高是多少来着？,大润发; 173cm,"你刚刚路过的商场叫大润发。  
+那个来自广东广州的老乡（你叔叔）身高是173厘米。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-9,conditional,hybrid,4,那个做瓦工助手的人年龄有多大来着？另外，那个地点是广东深圳的活动，规模是什么？,27岁; 七百人,"那个做瓦工助手的人是27岁。  
+另外，你说的那个在广东深圳的活动，是“摄影盛宴·友聚光影”，地点在广东深圳；关于它的规模，提供的记忆里没有提到人数或规模信息。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-10,conditional,hybrid,4,"那个特别爱旅游的人，他叫什么名字来着？另外，那个主要内容是""捕捉音乐魅力，用镜头记录精彩瞬间，感受音符跳跃，参与独特音乐会摄影之旅。""的活动，我要参加的活动是什么？",张涛; 音乐光影之旅,从目前提供的记忆里，没有提到“那个特别爱旅游的人”的名字，也没有出现你描述的那个与“捕捉音乐魅力、镜头记录精彩瞬间”的摄影类活动，因此我无法从现有记忆中确定这两者分别是谁 / 是什么活动。,False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-11,conditional,hybrid,4,那个喜欢登山的人是在哪儿工作的呀？另外，那个规模是五百人的活动，持续时间是什么？,广东深圳; 四个周,"那个喜欢登山的人是在广东深圳工作。  
+那个规模是五百人的活动是“音乐光影之旅”，但记忆里只说明了规模是五百人，没有提到活动的持续时间，所以持续时间信息暂无。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-12,conditional,hybrid,4,我参观的这个景区是什么呢？另外，那个喜欢下棋的人，他家乡是哪儿的呀？,海滨公园; 北京,"你参观的那个景区是「海滨公园」。
+
+那个喜欢下棋的人是你的下属，他的家乡在北京市。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-13,conditional,hybrid,4,那个邮箱是lizixuan0218@goldendragonlaw.com的人，他的教育背景是什么呀？另外，我参观的那个景区是哪个来着？,硕士; 海滨公园,"他的邮箱是 lizixuan0218@goldendragonlaw.com 的那位（你的下属）最高学历是硕士研究生。  
+你参观的那个景区叫做海滨公园。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-14,conditional,hybrid,4,那个喜欢阅读的人，多大年纪了啊？另外，那个规模是八千人的活动，我要参加的活动是什么？,61岁; 新兴产业峰会,"根据记录，“那个喜欢阅读的人”是你的下属，他今年36岁。  
+规模是八千人的活动是“新兴产业峰会”，你要参加的就是这个活动。",False,partial_chain_retrieved,distractor_contamination,True
+memdaily-conditional-hybrid-15,conditional,hybrid,4,广州金鼎律师事务所的邮箱地址能告诉我一下吗？另外，那个我要参加的活动是时尚音乐购物行的活动，持续时间是什么？,lizixuan0218@goldendragonlaw.com; 九个周,"1. 关于“广州金鼎律师事务所”的邮箱地址：  
+从目前提供的记忆片段里，只记录了你下属个人使用的邮箱地址 **lizixuan0218@goldendragonlaw.com**，没有单独注明律所的公共/官方邮箱。所以律所邮箱地址在这些记忆中 **查不到**。
+
+2. 你要参加的“时尚音乐购物行”活动的持续时间：  
+根据记忆，你说过该活动的持续时间是 **九个周**。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-16,conditional,hybrid,4,我的手机是啥来着？另外，那个地点是广东广州的活动，持续时间是什么？,OPPO Reno7; 一天,"关于你手机的具体型号或品牌：在这几条记忆里没有相关信息，所以我不知道。
+
+关于你说的广东广州的那个活动（高尔夫欢乐友谊赛）：持续时间是一整天。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-17,conditional,hybrid,4,我住的那个小区叫什么来着？另外，那个做银行柜员的，他是哪个学校毕业的？,世纪花园; 高中,"你现在住的那个小区叫「世纪花园」。
+
+至于那个做银行柜员的人是哪个学校毕业的，在当前提供的这些记忆里没有这方面的信息，所以我没法从记忆中确定他的毕业院校。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-18,conditional,hybrid,4,那个身高167cm的人的生日是什么时候呢？另外，那个规模是六百人的活动，主要内容是什么？,04月30日; 设计总监参加项目启动会，探讨创新设计理念，助力项目顺利实施，促进团队协作与成长。,"身高167cm的那个人是你表哥王宇轩，他的生日是每年的4月30日。
+
+那个规模是六百人的活动，是“设计前沿论坛”，其主要内容是探讨设计前沿理论、分享创新实践案例，促进设计行业交流与发展，并由广州的设计总监参与交流。",False,partial_chain_retrieved,distractor_contamination,True
+memdaily-conditional-hybrid-19,conditional,hybrid,4,那个只读到高中的朋友，他是哪天生日来着？另外，身高一米八的我，还能不能长高？我居住的小区是哪个来着？,08月25日; 世纪花园,"1. 那个只读到高中的朋友的生日：  
+   在提供的记忆里只提到一个「同事」生日是 12 月 31 日，但没有说这个同事是不是你说的那个只读到高中的朋友，所以**无法从现有记忆确定TA的生日**。
+
+2. 身高一米八还能不能长高：  
+   这不在记忆片段里，是一般常识问题。是否还能长高主要看年龄与骨骺线是否闭合：  
+   - 男性大多在 16–20 岁左右骨骺线闭合，之后基本很难再长高；  
+   - 如果你还在青春期中后段（比如 18 岁以下），还有一定长高空间；  
+   - 想更确定需要做骨龄片检查。
+
+3. 你居住的小区：  
+   你说过你当前居住的小区名称是**世纪花园**。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-20,conditional,hybrid,4,13640813241这个电话号码的人是做什么工作的呢？另外，我住的那个小区是哪个来着？,建筑工人; 阳光小区,"13640813241 这个电话号码是你舅舅的，他是一名从事建筑行业的工人，在深圳宏图建筑有限公司上班。  
+你现在住的那个小区叫「阳光小区」。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-21,conditional,hybrid,4,那个生日是10月23日的人，ta的邮箱地址是什么呀？另外，那个我要参加的活动是登山友谊分享会的活动，持续时间是什么？,li_ting1023@shygxfzx.com; 一天,"那个生日是10月23日的下属，ta 的邮箱地址是：**li_ting1023@shygxfzx.com**。  
+
+你要参加的“登山友谊分享会”活动，**持续时间为一天**。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-22,conditional,hybrid,4,我住的那个小区是叫什么来着？另外，那个我要参加的活动是教育产业发展论坛的活动，规模是什么？,阳光小区; 六千人,"你住的那个小区叫「阳光小区」。
+
+关于你要参加的「教育产业发展论坛」，在目前的记忆片段里没有关于它的“规模”（人数、规格等）的信息，所以这个问题的答案暂时查不到。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-23,conditional,hybrid,4,深圳宏图建筑有限公司的那个人，他家乡是哪里的？另外，我用的家电是什么呢？,河南郑州; 西门子洗衣机,"深圳宏图建筑有限公司的那个人（你说的是你舅舅），他家乡是在河南省郑州市一带。  
+你家里用的家电是西门子洗衣机。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-24,conditional,hybrid,4,那个在山东青岛工作的人叫什么名字来着？另外，我用的手机是啥型号来着？,赵雅琴; 华为Mate 60,"在山东青岛工作的人叫：**赵雅琴**。  
+你现在用的手机型号是：**华为 Mate60**。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-25,conditional,hybrid,4,这个我路过的商场是哪个啊？另外，北京速递先锋物流公司的人工作地是在哪儿呢？,大润发; 北京,"1）关于你路过的那个商场：在当前提供的记忆片段里，没有提到你路过的是哪一家商场，所以这个问题的答案不在已有记忆里。
+
+2）关于“北京速递先锋物流公司”的工作地：根据记忆，你之前提到你表姐在“北京速递先锋物流公司”工作，并且她是在北京市工作，也就是这家公司的工作地在北京市。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-26,conditional,hybrid,4,那个喜欢书法的兴趣爱好是什么教育背景啊？另外，这商场叫啥名儿来着？,专科; 大润发,"你说的那个喜欢书法的，是你表姐，她的最高学历是专科。  
+你刚刚路过的那个商场叫大润发。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-27,conditional,hybrid,4,"那个身高161cm的人，他的教育背景是啥呀？另外，那个主要内容是""研发总监年终总结大会：回顾年度成果，表彰优秀团队，展望未来发展，加强团队凝聚力。""的活动，地点是什么？",博士; 山东青岛,"关于那个身高 161cm 的人，他的教育背景在提供的记忆片段中没有提到，所以我不知道 TA 的学历信息。
+
+那个主要内容是“研发总监年终总结大会：回顾年度成果，表彰优秀团队，展望未来发展，加强团队凝聚力。”的活动，它的地点是山东青岛。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-conditional-hybrid-28,conditional,hybrid,4,那个喜欢戏剧的，是在哪儿工作的呀？另外，我用的家电都是啥啊？,浙江杭州; 美的电饭煲,"那个喜欢戏剧的是你的一个下属，他（她）在你手下工作。
+
+你提到的家电里，有一台美的品牌的电饭煲，你平时就是用这个电饭煲做饭，还觉得它整体表现不错、功能全面，就是噪音有点大。",False,partial_chain_retrieved,distractor_contamination,True
+memdaily-conditional-hybrid-29,conditional,hybrid,4,那个喜欢听音乐会的人，他身高有多高啊？另外，刚才路过的那个医院叫什么名字来着？,178cm; 胸科医院,"那个喜欢听音乐会的人是你舅舅张伟，他身高是178厘米。  
+刚才路过的那家医院叫「胸科医院」。",True,partial_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-30,conditional,hybrid,4,"厨师长的那个人，电话是多少来着？另外，那个主要内容是""组织杭州西湖徒步活动，增进团队凝聚力，欣赏美景，促进同事间交流，共度欢乐时光。""的活动，持续时间是什么？",19876815925; 四天,"关于厨师长那个人的电话：  
+提供的记忆里没有她的电话号码，无法从现有信息中得出。
+
+关于你说主要内容为“组织杭州西湖徒步活动，增进团队凝聚力，欣赏美景，促进同事间交流，共度欢乐时光。”的活动：  
+这个是“杭州西湖团队行”活动，它的持续时间是四天。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-conditional-hybrid-31,conditional,hybrid,4,那个年龄是53岁的人，他的电话是多少来着？另外，那个我要参加的活动是杭州西湖团队行的活动，持续时间是什么？,19876815925; 四天,"那个53岁的人是你舅妈（姨妈），她的电话是：19876815925。
+
+你要参加的杭州西湖团队行活动，持续时间是四天。",True,full_chain_retrieved,correct_answer,False
+memdaily-conditional-hybrid-32,conditional,hybrid,4,"那个在广州工作的人身高是多少来着？另外，那个主要内容是""探索美食之魅，以笔尖记录味蕾之旅，品味烹饪艺术，撰写舌尖上的故事。""的活动，我要参加的活动是什么？",164cm; 探索味蕾之旅美食节,"关于你问的两件事：
+
+1. 那个在广州工作的人（你的上司陈静雯）的身高：  
+   提供的记忆里没有她的身高信息，所以我不知道。
+
+2. 主要内容是“探索美食之魅，以笔尖记录味蕾之旅，品味烹饪艺术，撰写舌尖上的故事。”的活动：  
+   你要参加的活动是「探索味蕾之旅美食节」。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-0,aggregative,hybrid,8,有几个人身高在165cm及以下？另外，有几个活动的持续时间是八个周？,3人; 3个,"共有 3 个人身高在 165cm 及以下：  
+- 李婷婷：164cm  
+- 孙志宏：164cm  
+- 赵雅琳：165cm  
+
+共有 2 个活动的持续时间是八个周：  
+- 户外徒步模型创作之旅  
+- 深圳银行柜员招聘会",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-1,aggregative,hybrid,8,有几个人拥有硕士及以上学历呢？另外，有几个活动是在广东深圳举办的呢？,2人; 2个,"共有 2 个人拥有硕士及以上学历（张伟：博士；李婷婷：硕士）。  
+在广东深圳举办的活动有 2 个（户外徒步模型创作之旅、深圳银行柜员招聘会）。",True,partial_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-2,aggregative,hybrid,8,有几个人在广东深圳工作？另外，有几个活动的规模超过了一千人？,2人; 1个,"一共有 2 个人在广东深圳工作（赵雅琳、孙志宏）。
+
+活动中，规模超过一千人的有 1 个（“金融科技精英论坛”，三千人）。",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-3,aggregative,hybrid,8,那么问题来了，有几个人是来自北京的呀？另外，有几个活动的持续时间是八个周？,2人; 3个,"一共有 2 个人来自北京：张伟、李婷婷。  
+
+持续时间是八个周的活动有 2 个：  
+- 户外徒步模型创作之旅  
+- 深圳银行柜员招聘会",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-4,aggregative,hybrid,8,有几个人来自北京？另外，有几个活动的规模超过了五百人呢？,2人; 3个,"从北京来的人有 2 个（李婷婷和张伟）。
+
+规模超过五百人的活动有 2 个：
+- 户外徒步模型创作之旅（900人）
+- 金融科技精英论坛（3000人）",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-5,aggregative,hybrid,8,有几个人身高在165cm及以上呢？另外，有几个活动的规模超过了五百人啊？,2人; 3个,"关于身高：  
+已知身高的人里，张伟169cm、赵雅琳165cm，李婷婷164cm、孙志宏164cm。  
+因此，身高在165cm及以上的有 2 个人（张伟、赵雅琳）。
+
+关于活动规模：  
+深圳银行柜员招聘会规模是500人（不超过500），金融科技精英论坛规模是3000人（超过500）。  
+因此，规模超过五百人的活动有 1 个（金融科技精英论坛）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-6,aggregative,hybrid,8,有几个活动的持续时间是超过一个月的呢？另外，有几个人拥有专科以上的教育背景？,3个; 3人,"共有 2 个活动的持续时间超过一个月（趣跑购物节 8 周、阅读跑者盛宴 7 周）。  
+拥有专科以上教育背景的有 3 个人（本科：张丽华；硕士：王思琪、张雅静）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-7,aggregative,hybrid,8,有几个活动的规模超过了一千人呢？另外，有几个人工作在上海？,1个; 2人,"从提供的记忆里：
+
+1. 规模超过一千人的活动有 1 个：  
+- “趣跑购物节”规模是五千人（>1000）。
+
+2. 工作在上海的人有 2 个：  
+- 张雅静（你的同事，工作地是上海）  
+- 王思琪（你的上司，工作地是上海）",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-8,aggregative,hybrid,8,有几个人身高在165cm以下？另外，有几个活动的持续时间是超过一个月的？,3人; 3个,"身高在165cm以下的人有3个：  
+- 张丽华 162cm  
+- 李强 164cm  
+- 王思琪 160cm  
+
+持续时间超过一个月的活动有2个：  
+- “趣跑购物节” 8周  
+- “首席记者能力提升营” 5周",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-aggregative-hybrid-9,aggregative,hybrid,8,有几个活动的参与人数超过了一千人啊？另外，有几个人拥有硕士及以上的教育背景？,1个; 2人,"根据提供的记忆片段：
+
+1. 参与人数超过一千人的活动有：趣跑购物节（5000人），所以是 **1 个活动**。
+2. 拥有硕士及以上教育背景的人有：张雅静（硕士）、王思琪（硕士），所以是 **2 个人**。",True,partial_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-10,aggregative,hybrid,8,有几个人的年龄在60岁以上呢？另外，有几个活动的地点是在上海啊？,2人; 4个,"根据现有记忆里的人物年龄信息：
+
+- 年龄在 60 岁以上的有 2 个人：李强（61 岁）、张丽华（61 岁）。
+
+根据现有记忆里的活动地点信息：
+
+- 地点在上海的活动有 4 个：
+  1. 阅读跑者盛宴  
+  2. 趣跑购物节  
+  3. 首席记者能力提升营  
+  4. 上海记者团建拓展之旅  
+
+所以答案是：2 个人，4 个活动。",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-11,aggregative,hybrid,8,有几个人的工作地在上海啊？另外，有几个活动的持续时间超过了五个周呢？,2人; 2个,"共有2个人的工作地点在上海（张雅静、王思琪）。
+
+持续时间超过五个周的活动有2个：“趣跑购物节”（8个周）和“阅读跑者盛宴”（7个周）。“首席记者能力提升营”是5个周，不算超过。",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-12,aggregative,hybrid,8,有几个活动的规模是大于五百人的呢？另外，有几个人的年龄是在40岁以下呢？,3个; 3人,"有两个活动的规模是大于五百人的（“深圳建筑招聘会”8000人，“瓦工技艺创新分享会”600人）。
+
+有两个人的年龄是在40岁以下（王婷婷27岁，李明38岁）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-13,aggregative,hybrid,8,有几个人的工作地是在广东深圳？另外，有几个活动的地点在广东深圳？,2人; 4个,"有两个人的工作地在广东深圳（王婷婷、王志鹏）。
+
+有四个活动的地点在广东深圳（“深圳建筑招聘会”“瓦工技艺创新分享会”“摄影盛宴·友聚光影”“音乐光影之旅”）。",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-14,aggregative,hybrid,8,有几个人拥有专科及以下的教育背景？另外，有几个活动的规模超过了六百人啊？,3人; 2个,"已有记忆里，只有王婷婷被明确说明是“专科”学历，因此：
+
+- 拥有专科及以下教育背景的人数：**1 人**  
+- 规模超过六百人的活动：只有“摄影盛宴·友聚光影”（七百人），**1 场**",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-15,aggregative,hybrid,8,有几个人年龄在40岁以上呢？另外，有几个活动的持续时间是按周来算的？,1人; 3个,"一共有 1 个人年龄在 40 岁以上（张涛 51 岁）。
+
+按周计算持续时间的活动有 3 个：
+1. 深圳建筑招聘会（8 个周）
+2. 音乐光影之旅（4 个周）
+3. 摄影盛宴·友聚光影（7 个周）",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-16,aggregative,hybrid,8,有几个活动都是在广东深圳举办的呢？另外，有几个人身高在175cm以上呢？,4个; 2人,"一共有 4 个活动是在广东深圳举办的，分别是：
+- 深圳建筑招聘会  
+- 瓦工技艺创新分享会  
+- 摄影盛宴·友聚光影  
+- 音乐光影之旅  
+
+身高在 175cm 以上的一共有 2 个人：
+- 李明：190cm  
+- 王志鹏：185cm",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-17,aggregative,hybrid,8,有几个活动的地点在广东深圳？另外，有几个人在广东深圳工作呢？,4个; 2人,"根据提供的记忆片段：
+
+- 在广东深圳举行的活动有 4 个：  
+  深圳建筑招聘会、瓦工技艺创新分享会、音乐光影之旅、摄影盛宴·友聚光影。  
+- 在广东深圳工作的人有 2 位：王婷婷、王志鹏。",True,partial_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-18,aggregative,hybrid,8,那么我的问题就是：有几个人是专科毕业的呢？另外，有几个活动的地点在广东广州？,2人; 3个,"从提供的记忆里：
+
+1. 专科毕业的人数：只有一位——刘宇轩。  
+2. 地点在广东广州的活动有三个：  
+   - 电影音乐视听盛宴  
+   - 时尚音乐购物行  
+   - 创新法治研讨会  
+
+所以答案是：1 个人是专科毕业的，有 3 个活动地点在广东广州。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-19,aggregative,hybrid,8,有几个人是专科毕业的？另外，有几个活动的持续时间是以“天”为单位的？,2人; 1个,"从提供的记忆中，没有提到任何人的学历是“专科”，所以“专科毕业的人数”无法从这些记忆中得出，视为 0 或“信息不可得”。
+
+以“天”为单位的活动持续时间：  
+只有“广州新兴产业峰会”的持续时间是三天，因此这样的活动有 1 个。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-20,aggregative,hybrid,8,有几个活动的规模超过了千人啊？另外，有几个人在9月份过生日呢？,2个; 2人,"超过千人规模的活动有 2 个（电影音乐视听盛宴：6000人；广州新兴产业峰会：8000人）。
+
+9月份过生日的有 1 个人（刘宇轩：09月13日）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-21,aggregative,hybrid,8,有几个活动的规模超过了1000人呢？另外，有几个人的工作地是在广东广州呢？,2个; 3人,"有超过1000人规模的活动有2个：  
+- 广州新兴产业峰会（8000人）  
+- 电影音乐视听盛宴（6000人）
+
+工作地在广东广州的人有3个：  
+- 李梓轩  
+- 张翰林  
+- 王思琪",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-22,aggregative,hybrid,8,有几个活动的地点在广东广州？另外，有几个人年龄在60岁及以上呢？,3个; 2人,"共有3个活动的地点在广东广州（创新法治研讨会、时尚音乐购物行、电影音乐视听盛宴）。
+
+在已知人物中，年龄在60岁及以上的有1人（刘宇轩，61岁）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-23,aggregative,hybrid,8,有几个活动的地点在广东广州？另外，有几个人的家乡在山西太原？,3个; 2人,"有3个活动的地点在广东广州（电影音乐视听盛宴、时尚音乐购物行，以及另一个活动地点信息未提及则不计入，仅这两个活动）。  
+有2个人的家乡在山西太原（刘宇轩、张翰林）。",False,partial_chain_retrieved,distractor_contamination,True
+memdaily-aggregative-hybrid-24,aggregative,hybrid,8,有几个人年龄超过50岁呢？另外，有几个活动的地点是广东广州？,2人; 4个,"根据提供的记忆片段：
+
+1. 年龄超过 50 岁的人数：  
+   记忆中只提到两个人：  
+   - 王宇轩：45岁  
+   - 孙逸飞：41岁  
+   都未超过50岁，因此“年龄超过50岁的人数”在已知信息中是 0（且无法确定是否还有别人没被记录）。
+
+2. 地点在“广东广州”的活动数量：  
+   - 设计前沿论坛  
+   - 高尔夫欢乐友谊赛  
+   - 设计总监项目启动会  
+   - 美食盛宴·高球趣  
+   共 4 个活动地点是广东广州。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-25,aggregative,hybrid,8,有几个人拥有博士以上的教育背景呢？另外，有几个活动的参与人数超过了一千人啊？,0人; 2个,"根据记忆片段里的人物信息：
+
+- 拥有博士及以上教育背景的人有 2 位：孙逸飞、李梓轩。  
+
+根据活动规模信息：
+
+- 参与人数超过一千人的活动有 1 个：设计前沿论坛（规模九千人）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-26,aggregative,hybrid,8,有几个活动的规模超过了千人啊？另外，有几个人是在下半年出生的呢？,2个; 2人,"有 1 个活动的规模超过了千人（“设计前沿论坛”规模为九千人，其它两个活动分别是四百人和六百人，未超过千人）。
+
+在已知的三个人中，有 2 个人是在下半年出生的：  
+- 张静怡（08月25日）  
+- 孙逸飞（12月31日）  
+王宇轩（04月30日）是在上半年出生的。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-27,aggregative,hybrid,8,有几个活动的规模超过了一千人啊？另外，有几个人的身高在165cm以下呢？,2个; 2人,"超过一千人的活动有 2 个：  
+- 设计前沿论坛：9000人  
+- 美食盛宴·高球趣：5000人  
+
+身高在 165cm 以下的人有 2 个：  
+- 张静怡：162cm  
+- 孙逸飞：161cm",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-28,aggregative,hybrid,8,有几个人身高在165cm以下？另外，有几个活动都是在广东广州举行的呢？,2人; 4个,"共有 2 个人身高在 165cm 以下：你妈妈张静怡（162cm）和同事孙逸飞（161cm）。
+
+在广东广州举行的活动一共有 4 个：
+1. 高尔夫欢乐友谊赛  
+2. 设计前沿论坛  
+3. 设计总监项目启动会  
+4. 美食盛宴·高球趣",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-29,aggregative,hybrid,8,有几个人跟我一样是山东济南的？另外，有几个活动的地点在广东广州？,2人; 4个,"从记忆里能看到的和你一样是山东济南的，有 2 个人：  
+- 你妈妈张静怡（家乡是山东省济南市）  
+- 你表哥王宇轩（家乡是山东省济南市）
+
+在广东广州举办的活动一共 4 个：  
+1. 设计前沿论坛  
+2. 设计总监项目启动会  
+3. 高尔夫欢乐友谊赛  
+4. 美食盛宴·高球趣",True,full_chain_retrieved,correct_answer,False
+memdaily-aggregative-hybrid-30,aggregative,hybrid,8,有几个活动的规模超过了千人呢？另外，有几个人身高在160cm及以上？,1个; 3人,"根据提供的记忆，只提到一个活动：教育产业发展论坛，规模是六千人，因此：
+
+- 规模超过千人的活动：1 个（教育产业发展论坛）。
+- 身高在 160cm 及以上的人：2 个（张伟 173cm，王宇 163cm；李婷 150cm 不满足）。",False,partial_chain_retrieved,partial_chain_retrieved,False
+memdaily-aggregative-hybrid-31,aggregative,hybrid,8,有几个人的身高在160cm及以上呢？另外，有几个活动的规模超过了五百人呢？,3人; 2个,"身高在160cm及以上的有3个人：王宇（163cm）、张伟（173cm）、陈雪梅（163cm）。
+
+规模超过五百人的活动有1个：登顶健身·自然探秘活动（900人）。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-aggregative-hybrid-32,aggregative,hybrid,8,有几个人的生日在6月份？另外，有几个活动都在上海举行啊？,2人; 4个,"从提供的记忆里，没有任何人的生日是在6月份，所以是 **0 个人**。  
+在上海举行的活动一共有 **4 个**：教育创新研讨会、教育产业发展论坛、登顶健身·自然探秘、登山友谊分享会。",False,full_chain_retrieved,retrieved_full_chain_but_reasoning_failed,False
+memdaily-aggregative-hybrid-33,aggregative,hybrid,8,有几个人工作在上海呀？另外，有几个活动的地点是上海啊？,2人; 4个,"共有 2 个人工作的地点在上海（李婷、陈雪梅)。
+
+共有 4 个活动的地点在上海：  
+1）教育产业发展论坛  
+2）登顶健身·自然探秘  
+3）教育创新研讨会  
+4）登山友谊分享会",True,full_chain_retrieved,correct_answer,False
