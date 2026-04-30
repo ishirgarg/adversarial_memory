@@ -298,7 +298,7 @@ if [ "$SKIP_GENERATE" = false ]; then
     echo ">>> Generating dataset ($NUM_ROWS rows)..."
     uv run python dataset_utils/custom_persona_retrieval/generate_misleading_persona_dataset.py \
         --num-rows "$NUM_ROWS" \
-        --batch-size 10 \
+        --batch-size 5 \
         --seed "$SEED" \
         --output-csv "$DATASET"
     echo ">>> Dataset saved to: $DATASET"
