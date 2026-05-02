@@ -92,17 +92,23 @@ JUDGE_WORKERS=8
 # mem0
 MEM0_LLM_PROVIDER="openai"
 MEM0_LLM_MODEL="gpt-4.1-mini"
+MEM0_LLM_API_KEY=""
+MEM0_LLM_BASE_URL=""
 MEM0_EMBEDDING_PROVIDER=""
 MEM0_EMBEDDING_MODEL=""
 
 # amem
 AMEM_LLM_BACKEND="openai"
 AMEM_LLM_MODEL="gpt-4.1-mini"
+AMEM_API_KEY=""
+AMEM_BASE_URL=""
 AMEM_EMBEDDING_MODEL="all-MiniLM-L6-v2"
 AMEM_EVO_THRESHOLD=100
 
 # simplemem
 SIMPLEMEM_MODEL="gpt-4.1-mini"
+SIMPLEMEM_API_KEY=""
+SIMPLEMEM_BASE_URL=""
 SIMPLEMEM_EMBEDDING_MODEL="all-MiniLM-L6-v2"
 SIMPLEMEM_EMBEDDING_DIMENSION=384
 SIMPLEMEM_EMBEDDING_CONTEXT_LENGTH=512
@@ -146,17 +152,23 @@ while [[ $# -gt 0 ]]; do
         # mem0
         --mem0-llm-provider)       MEM0_LLM_PROVIDER="$2";       shift 2 ;;
         --mem0-llm-model)          MEM0_LLM_MODEL="$2";           shift 2 ;;
+        --mem0-llm-api-key)        MEM0_LLM_API_KEY="$2";         shift 2 ;;
+        --mem0-llm-base-url)       MEM0_LLM_BASE_URL="$2";        shift 2 ;;
         --mem0-embedding-provider) MEM0_EMBEDDING_PROVIDER="$2";  shift 2 ;;
         --mem0-embedding-model)    MEM0_EMBEDDING_MODEL="$2";     shift 2 ;;
 
         # amem
         --amem-llm-backend)     AMEM_LLM_BACKEND="$2";     shift 2 ;;
         --amem-llm-model)       AMEM_LLM_MODEL="$2";       shift 2 ;;
+        --amem-api-key)         AMEM_API_KEY="$2";         shift 2 ;;
+        --amem-base-url)        AMEM_BASE_URL="$2";        shift 2 ;;
         --amem-embedding-model) AMEM_EMBEDDING_MODEL="$2"; shift 2 ;;
         --amem-evo-threshold)   AMEM_EVO_THRESHOLD="$2";   shift 2 ;;
 
         # simplemem
         --simplemem-model)                    SIMPLEMEM_MODEL="$2";                    shift 2 ;;
+        --simplemem-api-key)                  SIMPLEMEM_API_KEY="$2";                  shift 2 ;;
+        --simplemem-base-url)                 SIMPLEMEM_BASE_URL="$2";                 shift 2 ;;
         --simplemem-embedding-model)          SIMPLEMEM_EMBEDDING_MODEL="$2";          shift 2 ;;
         --simplemem-embedding-dimension)      SIMPLEMEM_EMBEDDING_DIMENSION="$2";      shift 2 ;;
         --simplemem-embedding-context-length) SIMPLEMEM_EMBEDDING_CONTEXT_LENGTH="$2"; shift 2 ;;
@@ -209,6 +221,31 @@ if [ -n "$MEM0_EMBEDDING_PROVIDER" ]; then
 fi
 if [ -n "$MEM0_EMBEDDING_MODEL" ]; then
     MEM0_EMBEDDING_ARGS="$MEM0_EMBEDDING_ARGS --mem0-embedding-model $MEM0_EMBEDDING_MODEL"
+fi
+
+# Build optional LiteLLM-proxy args for each memory system (only passed when set)
+MEM0_PROXY_ARGS=""
+if [ -n "$MEM0_LLM_API_KEY" ]; then
+    MEM0_PROXY_ARGS="--mem0-llm-api-key $MEM0_LLM_API_KEY"
+fi
+if [ -n "$MEM0_LLM_BASE_URL" ]; then
+    MEM0_PROXY_ARGS="$MEM0_PROXY_ARGS --mem0-llm-base-url $MEM0_LLM_BASE_URL"
+fi
+
+AMEM_PROXY_ARGS=""
+if [ -n "$AMEM_API_KEY" ]; then
+    AMEM_PROXY_ARGS="--amem-api-key $AMEM_API_KEY"
+fi
+if [ -n "$AMEM_BASE_URL" ]; then
+    AMEM_PROXY_ARGS="$AMEM_PROXY_ARGS --amem-base-url $AMEM_BASE_URL"
+fi
+
+SIMPLEMEM_PROXY_ARGS=""
+if [ -n "$SIMPLEMEM_API_KEY" ]; then
+    SIMPLEMEM_PROXY_ARGS="--simplemem-api-key $SIMPLEMEM_API_KEY"
+fi
+if [ -n "$SIMPLEMEM_BASE_URL" ]; then
+    SIMPLEMEM_PROXY_ARGS="$SIMPLEMEM_PROXY_ARGS --simplemem-base-url $SIMPLEMEM_BASE_URL"
 fi
 
 GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -350,7 +387,8 @@ if [ "$SKIP_MEM0" = false ]; then
     run_memory_system "mem0" "mem0" \
         "--mem0-llm-provider $MEM0_LLM_PROVIDER \
          --mem0-llm-model $MEM0_LLM_MODEL \
-         $MEM0_EMBEDDING_ARGS"
+         $MEM0_EMBEDDING_ARGS \
+         $MEM0_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping mem0."
@@ -371,7 +409,8 @@ if [ "$SKIP_SIMPLEMEM" = false ]; then
          --simplemem-memory-table-name $SIMPLEMEM_MEMORY_TABLE_NAME \
          --simplemem-max-parallel-workers $SIMPLEMEM_MAX_PARALLEL_WORKERS \
          --simplemem-max-retrieval-workers $SIMPLEMEM_MAX_RETRIEVAL_WORKERS \
-         --simplemem-max-reflection-rounds $SIMPLEMEM_MAX_REFLECTION_ROUNDS"
+         --simplemem-max-reflection-rounds $SIMPLEMEM_MAX_REFLECTION_ROUNDS \
+         $SIMPLEMEM_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping simplemem."
@@ -385,7 +424,8 @@ if [ "$SKIP_AMEM" = false ]; then
         "--amem-llm-backend $AMEM_LLM_BACKEND \
          --amem-llm-model $AMEM_LLM_MODEL \
          --amem-embedding-model $AMEM_EMBEDDING_MODEL \
-         --amem-evo-threshold $AMEM_EVO_THRESHOLD"
+         --amem-evo-threshold $AMEM_EVO_THRESHOLD \
+         $AMEM_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping amem."

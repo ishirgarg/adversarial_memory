@@ -87,6 +87,8 @@ class Mem0MemorySystem:
         shared_user_id: str | None = None,
         llm_provider: str = "openai",
         llm_model: str = "gpt-4o-mini",
+        llm_api_key: str | None = None,
+        llm_base_url: str | None = None,
         embedding_provider: str | None = None,
         embedding_model: str | None = None,
         ollama_base_url: str | None = None,
@@ -96,7 +98,17 @@ class Mem0MemorySystem:
         from mem0.llms.configs import LlmConfig
         from mem0.embeddings.configs import EmbedderConfig
 
-        llm_cfg = LlmConfig(provider=llm_provider, config={"model": llm_model})
+        llm_inner_cfg: dict = {"model": llm_model}
+        if llm_api_key is not None:
+            llm_inner_cfg["api_key"] = llm_api_key
+        if llm_base_url is not None:
+            # mem0's OpenAIConfig reads the base URL from openai_base_url
+            if llm_provider == "openai":
+                llm_inner_cfg["openai_base_url"] = llm_base_url
+            else:
+                llm_inner_cfg[f"{llm_provider}_base_url"] = llm_base_url
+
+        llm_cfg = LlmConfig(provider=llm_provider, config=llm_inner_cfg)
 
         config_kwargs: dict = {"llm": llm_cfg}
 
@@ -170,6 +182,7 @@ class AMEMMemorySystem:
         embedding_model: str = "all-MiniLM-L6-v2",
         evo_threshold: int = 100,
         api_key: str | None = None,
+        base_url: str | None = None,
     ):
         if api_key is None:
             api_key = os.getenv("OPENAI_API_KEY")
@@ -187,6 +200,7 @@ class AMEMMemorySystem:
             llm_model=llm_model,
             evo_threshold=evo_threshold,
             api_key=api_key,
+            base_url=base_url,
         )
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:

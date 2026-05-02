@@ -106,6 +106,10 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
                       help="LLM provider for mem0 memory operations.")
     mem0.add_argument("--mem0-llm-model", type=str, default="gpt-5-mini",
                       help="LLM model for mem0 memory operations.")
+    mem0.add_argument("--mem0-llm-api-key", type=str, default=None,
+                      help="API key for the mem0 LLM (e.g. LiteLLM proxy key). Falls back to global --api-key.")
+    mem0.add_argument("--mem0-llm-base-url", type=str, default=None,
+                      help="OpenAI-compatible base URL for the mem0 LLM (e.g. LiteLLM proxy).")
     mem0.add_argument("--mem0-embedding-provider", type=str, default=None,
                       help="Embedding provider (e.g. openai, ollama). Uses mem0 default if omitted.")
     mem0.add_argument("--mem0-embedding-model", type=str, default=None,
@@ -119,6 +123,10 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
                       help="LLM backend for A-MEM (openai or ollama).")
     amem.add_argument("--amem-llm-model", type=str, default="gpt-4o-mini",
                       help="LLM model for A-MEM memory operations.")
+    amem.add_argument("--amem-api-key", type=str, default=None,
+                      help="API key for the A-MEM LLM (e.g. LiteLLM proxy key). Falls back to global --api-key.")
+    amem.add_argument("--amem-base-url", type=str, default=None,
+                      help="OpenAI-compatible base URL for A-MEM's LLM (e.g. LiteLLM proxy).")
     amem.add_argument("--amem-embedding-model", type=str, default="all-MiniLM-L6-v2",
                       help="Sentence-transformer embedding model for A-MEM.")
     amem.add_argument("--amem-evo-threshold", type=int, default=100,
@@ -128,8 +136,10 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
     sm = parser.add_argument_group("simplemem options")
     sm.add_argument("--simplemem-model", type=str, default="gpt-4.1-mini",
                     help="LLM model for SimpleMem memory operations.")
+    sm.add_argument("--simplemem-api-key", type=str, default=None,
+                    help="API key for the SimpleMem LLM (e.g. LiteLLM proxy key). Falls back to global --api-key.")
     sm.add_argument("--simplemem-base-url", type=str, default=None,
-                    help="Custom OpenAI-compatible base URL for SimpleMem.")
+                    help="OpenAI-compatible base URL for SimpleMem (e.g. LiteLLM proxy).")
     sm.add_argument("--simplemem-db-path", type=str, default="./lancedb_data",
                     help="LanceDB storage path for SimpleMem.")
     sm.add_argument("--simplemem-embedding-model", type=str, default="all-MiniLM-L6-v2",
@@ -170,6 +180,8 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             shared_user_id=args.shared_user_id,
             llm_provider=args.mem0_llm_provider,
             llm_model=args.mem0_llm_model,
+            llm_api_key=args.mem0_llm_api_key or api_key,
+            llm_base_url=args.mem0_llm_base_url,
             embedding_provider=args.mem0_embedding_provider,
             embedding_model=args.mem0_embedding_model,
             ollama_base_url=args.mem0_ollama_base_url,
@@ -178,7 +190,7 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
     if memory == "simplemem":
         return SimpleMemMemorySystem(
             num_memories=args.num_memories,
-            api_key=api_key,
+            api_key=args.simplemem_api_key or api_key,
             model=args.simplemem_model,
             base_url=args.simplemem_base_url,
             db_path=args.simplemem_db_path,
@@ -208,7 +220,8 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             llm_model=args.amem_llm_model,
             embedding_model=args.amem_embedding_model,
             evo_threshold=args.amem_evo_threshold,
-            api_key=api_key,
+            api_key=args.amem_api_key or api_key,
+            base_url=args.amem_base_url,
         )
 
     raise ValueError(f"Unknown memory system: {memory!r}. Choose mem0, simplemem, or amem.")
