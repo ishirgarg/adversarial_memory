@@ -121,6 +121,19 @@ class Mem0MemorySystem:
             )
 
         self.memory = mem0.Memory(config=MemoryConfig(**config_kwargs))
+
+        # Some proxy backends (e.g. Anthropic Claude via Vertex AI on a LiteLLM
+        # proxy) reject requests that specify both `temperature` and `top_p`.
+        # mem0's base LLM unconditionally sends both, so when a custom base_url
+        # is in use we strip `top_p` from every outgoing request.
+        if llm_base_url is not None and hasattr(self.memory, "llm"):
+            _orig_common = self.memory.llm._get_common_params
+            def _patched_common(*args, **kw):
+                params = _orig_common(*args, **kw)
+                params.pop("top_p", None)
+                return params
+            self.memory.llm._get_common_params = _patched_common
+
         self.num_memories = num_memories
         self.shared_user_id = shared_user_id
 
