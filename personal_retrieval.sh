@@ -83,6 +83,7 @@ SKIP_SIMPLEMEM=false
 SKIP_AMEM=false
 SKIP_EVERMEMOS=true
 SKIP_STRUCTMEM=true
+SKIP_LICOMEMORY=true
 SKIP_ANALYSIS=false
 
 # Dataset
@@ -104,17 +105,23 @@ JUDGE_WORKERS=8
 # mem0
 MEM0_LLM_PROVIDER="openai"
 MEM0_LLM_MODEL="gpt-4.1-mini"
+MEM0_LLM_API_KEY=""
+MEM0_LLM_BASE_URL=""
 MEM0_EMBEDDING_PROVIDER=""
 MEM0_EMBEDDING_MODEL=""
 
 # amem
 AMEM_LLM_BACKEND="openai"
 AMEM_LLM_MODEL="gpt-4.1-mini"
+AMEM_API_KEY=""
+AMEM_BASE_URL=""
 AMEM_EMBEDDING_MODEL="all-MiniLM-L6-v2"
 AMEM_EVO_THRESHOLD=100
 
 # simplemem
 SIMPLEMEM_MODEL="gpt-4.1-mini"
+SIMPLEMEM_API_KEY=""
+SIMPLEMEM_BASE_URL=""
 SIMPLEMEM_EMBEDDING_MODEL="all-MiniLM-L6-v2"
 SIMPLEMEM_EMBEDDING_DIMENSION=384
 SIMPLEMEM_EMBEDDING_CONTEXT_LENGTH=512
@@ -140,6 +147,11 @@ STRUCTMEM_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
 STRUCTMEM_QDRANT_PATH="./structmem_qdrant"
 STRUCTMEM_COLLECTION_NAME="structmem"
 
+# licomemory
+LICOMEMORY_MODEL="gpt-4.1-mini"
+LICOMEMORY_API_KEY=""
+LICOMEMORY_BASE_URL=""
+
 # --------------------------------------------------------------------------
 # Argument parsing
 # --------------------------------------------------------------------------
@@ -152,8 +164,10 @@ while [[ $# -gt 0 ]]; do
         --skip-amem)       SKIP_AMEM=true;       shift ;;
         --skip-evermemos)  SKIP_EVERMEMOS=true;  shift ;;
         --skip-structmem)  SKIP_STRUCTMEM=true;  shift ;;
+        --skip-licomemory) SKIP_LICOMEMORY=true; shift ;;
         --run-evermemos)   SKIP_EVERMEMOS=false; shift ;;
         --run-structmem)   SKIP_STRUCTMEM=false; shift ;;
+        --run-licomemory)  SKIP_LICOMEMORY=false; shift ;;
         --skip-analysis)   SKIP_ANALYSIS=true;   shift ;;
 
         # Dataset / generation
@@ -175,17 +189,23 @@ while [[ $# -gt 0 ]]; do
         # mem0
         --mem0-llm-provider)       MEM0_LLM_PROVIDER="$2";       shift 2 ;;
         --mem0-llm-model)          MEM0_LLM_MODEL="$2";           shift 2 ;;
+        --mem0-llm-api-key)        MEM0_LLM_API_KEY="$2";         shift 2 ;;
+        --mem0-llm-base-url)       MEM0_LLM_BASE_URL="$2";        shift 2 ;;
         --mem0-embedding-provider) MEM0_EMBEDDING_PROVIDER="$2";  shift 2 ;;
         --mem0-embedding-model)    MEM0_EMBEDDING_MODEL="$2";     shift 2 ;;
 
         # amem
         --amem-llm-backend)     AMEM_LLM_BACKEND="$2";     shift 2 ;;
         --amem-llm-model)       AMEM_LLM_MODEL="$2";       shift 2 ;;
+        --amem-api-key)         AMEM_API_KEY="$2";         shift 2 ;;
+        --amem-base-url)        AMEM_BASE_URL="$2";        shift 2 ;;
         --amem-embedding-model) AMEM_EMBEDDING_MODEL="$2"; shift 2 ;;
         --amem-evo-threshold)   AMEM_EVO_THRESHOLD="$2";   shift 2 ;;
 
         # simplemem
         --simplemem-model)                    SIMPLEMEM_MODEL="$2";                    shift 2 ;;
+        --simplemem-api-key)                  SIMPLEMEM_API_KEY="$2";                  shift 2 ;;
+        --simplemem-base-url)                 SIMPLEMEM_BASE_URL="$2";                 shift 2 ;;
         --simplemem-embedding-model)          SIMPLEMEM_EMBEDDING_MODEL="$2";          shift 2 ;;
         --simplemem-embedding-dimension)      SIMPLEMEM_EMBEDDING_DIMENSION="$2";      shift 2 ;;
         --simplemem-embedding-context-length) SIMPLEMEM_EMBEDDING_CONTEXT_LENGTH="$2"; shift 2 ;;
@@ -210,6 +230,11 @@ while [[ $# -gt 0 ]]; do
         --structmem-embedding-model)  STRUCTMEM_EMBEDDING_MODEL="$2";  shift 2 ;;
         --structmem-qdrant-path)      STRUCTMEM_QDRANT_PATH="$2";      shift 2 ;;
         --structmem-collection-name)  STRUCTMEM_COLLECTION_NAME="$2";  shift 2 ;;
+
+        # licomemory
+        --licomemory-model)           LICOMEMORY_MODEL="$2";           shift 2 ;;
+        --licomemory-api-key)         LICOMEMORY_API_KEY="$2";         shift 2 ;;
+        --licomemory-base-url)        LICOMEMORY_BASE_URL="$2";        shift 2 ;;
 
         *)
             echo "Unknown argument: $1" >&2
@@ -238,6 +263,30 @@ if [ -n "$MEM0_EMBEDDING_MODEL" ]; then
     MEM0_EMBEDDING_ARGS="$MEM0_EMBEDDING_ARGS --mem0-embedding-model $MEM0_EMBEDDING_MODEL"
 fi
 
+MEM0_PROXY_ARGS=""
+if [ -n "$MEM0_LLM_API_KEY" ]; then
+    MEM0_PROXY_ARGS="--mem0-llm-api-key $MEM0_LLM_API_KEY"
+fi
+if [ -n "$MEM0_LLM_BASE_URL" ]; then
+    MEM0_PROXY_ARGS="$MEM0_PROXY_ARGS --mem0-llm-base-url $MEM0_LLM_BASE_URL"
+fi
+
+AMEM_PROXY_ARGS=""
+if [ -n "$AMEM_API_KEY" ]; then
+    AMEM_PROXY_ARGS="--amem-api-key $AMEM_API_KEY"
+fi
+if [ -n "$AMEM_BASE_URL" ]; then
+    AMEM_PROXY_ARGS="$AMEM_PROXY_ARGS --amem-base-url $AMEM_BASE_URL"
+fi
+
+SIMPLEMEM_PROXY_ARGS=""
+if [ -n "$SIMPLEMEM_API_KEY" ]; then
+    SIMPLEMEM_PROXY_ARGS="--simplemem-api-key $SIMPLEMEM_API_KEY"
+fi
+if [ -n "$SIMPLEMEM_BASE_URL" ]; then
+    SIMPLEMEM_PROXY_ARGS="$SIMPLEMEM_PROXY_ARGS --simplemem-base-url $SIMPLEMEM_BASE_URL"
+fi
+
 EVERMEMOS_LLM_ARGS=""
 if [ -n "$EVERMEMOS_LLM_PROVIDER" ]; then
     EVERMEMOS_LLM_ARGS="--evermemos-llm-provider $EVERMEMOS_LLM_PROVIDER"
@@ -252,6 +301,14 @@ if [ -n "$STRUCTMEM_API_KEY" ]; then
 fi
 if [ -n "$STRUCTMEM_BASE_URL" ]; then
     STRUCTMEM_PROXY_ARGS="$STRUCTMEM_PROXY_ARGS --structmem-base-url $STRUCTMEM_BASE_URL"
+fi
+
+LICOMEMORY_PROXY_ARGS=""
+if [ -n "$LICOMEMORY_API_KEY" ]; then
+    LICOMEMORY_PROXY_ARGS="--licomemory-api-key $LICOMEMORY_API_KEY"
+fi
+if [ -n "$LICOMEMORY_BASE_URL" ]; then
+    LICOMEMORY_PROXY_ARGS="$LICOMEMORY_PROXY_ARGS --licomemory-base-url $LICOMEMORY_BASE_URL"
 fi
 
 GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -332,6 +389,7 @@ run_memory_system() {
         --dataset "$DATASET" \
         --memory "$MEMORY" \
         --output-dir "$RESULTS_BASE" \
+        --run-dir "$RESULTS_BASE" \
         --llm-model "$LLM_MODEL" \
         --num-memories "$NUM_MEMORIES" \
         --facts-per-group "$FACTS_PER_GROUP" \
@@ -382,7 +440,8 @@ if [ "$SKIP_MEM0" = false ]; then
     run_memory_system "mem0" "mem0" \
         "--mem0-llm-provider $MEM0_LLM_PROVIDER \
          --mem0-llm-model $MEM0_LLM_MODEL \
-         $MEM0_EMBEDDING_ARGS"
+         $MEM0_EMBEDDING_ARGS \
+         $MEM0_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping mem0."
@@ -403,7 +462,8 @@ if [ "$SKIP_SIMPLEMEM" = false ]; then
          --simplemem-memory-table-name $SIMPLEMEM_MEMORY_TABLE_NAME \
          --simplemem-max-parallel-workers $SIMPLEMEM_MAX_PARALLEL_WORKERS \
          --simplemem-max-retrieval-workers $SIMPLEMEM_MAX_RETRIEVAL_WORKERS \
-         --simplemem-max-reflection-rounds $SIMPLEMEM_MAX_REFLECTION_ROUNDS"
+         --simplemem-max-reflection-rounds $SIMPLEMEM_MAX_REFLECTION_ROUNDS \
+         $SIMPLEMEM_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping simplemem."
@@ -417,7 +477,8 @@ if [ "$SKIP_AMEM" = false ]; then
         "--amem-llm-backend $AMEM_LLM_BACKEND \
          --amem-llm-model $AMEM_LLM_MODEL \
          --amem-embedding-model $AMEM_EMBEDDING_MODEL \
-         --amem-evo-threshold $AMEM_EVO_THRESHOLD"
+         --amem-evo-threshold $AMEM_EVO_THRESHOLD \
+         $AMEM_PROXY_ARGS"
 else
     echo ""
     echo ">>> Skipping amem."
@@ -449,6 +510,18 @@ if [ "$SKIP_STRUCTMEM" = false ]; then
 else
     echo ""
     echo ">>> Skipping structmem."
+fi
+
+# --------------------------------------------------------------------------
+# Step 7: licomemory
+# --------------------------------------------------------------------------
+if [ "$SKIP_LICOMEMORY" = false ]; then
+    run_memory_system "licomemory" "LiCoMemory" \
+        "--licomemory-model $LICOMEMORY_MODEL \
+         $LICOMEMORY_PROXY_ARGS"
+else
+    echo ""
+    echo ">>> Skipping licomemory."
 fi
 
 echo ""

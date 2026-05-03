@@ -87,6 +87,7 @@ SKIP_SIMPLEMEM=false
 SKIP_AMEM=false
 SKIP_EVERMEMOS=true
 SKIP_STRUCTMEM=true
+SKIP_LICOMEMORY=true
 SKIP_ANALYSIS=false
 
 # Dataset
@@ -152,6 +153,11 @@ STRUCTMEM_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
 STRUCTMEM_QDRANT_PATH="./structmem_qdrant"
 STRUCTMEM_COLLECTION_NAME="structmem"
 
+# licomemory
+LICOMEMORY_MODEL="gpt-4.1-mini"
+LICOMEMORY_API_KEY=""
+LICOMEMORY_BASE_URL=""
+
 # --------------------------------------------------------------------------
 # Argument parsing
 # --------------------------------------------------------------------------
@@ -164,8 +170,10 @@ while [[ $# -gt 0 ]]; do
         --skip-amem)       SKIP_AMEM=true;       shift ;;
         --skip-evermemos)  SKIP_EVERMEMOS=true;  shift ;;
         --skip-structmem)  SKIP_STRUCTMEM=true;  shift ;;
+        --skip-licomemory) SKIP_LICOMEMORY=true; shift ;;
         --run-evermemos)   SKIP_EVERMEMOS=false; shift ;;
         --run-structmem)   SKIP_STRUCTMEM=false; shift ;;
+        --run-licomemory)  SKIP_LICOMEMORY=false; shift ;;
         --skip-analysis)   SKIP_ANALYSIS=true;   shift ;;
 
         # Dataset / generation
@@ -229,6 +237,11 @@ while [[ $# -gt 0 ]]; do
         --structmem-embedding-model)  STRUCTMEM_EMBEDDING_MODEL="$2";  shift 2 ;;
         --structmem-qdrant-path)      STRUCTMEM_QDRANT_PATH="$2";      shift 2 ;;
         --structmem-collection-name)  STRUCTMEM_COLLECTION_NAME="$2";  shift 2 ;;
+
+        # licomemory
+        --licomemory-model)           LICOMEMORY_MODEL="$2";           shift 2 ;;
+        --licomemory-api-key)         LICOMEMORY_API_KEY="$2";         shift 2 ;;
+        --licomemory-base-url)        LICOMEMORY_BASE_URL="$2";        shift 2 ;;
 
         *)
             echo "Unknown argument: $1" >&2
@@ -314,6 +327,14 @@ if [ -n "$STRUCTMEM_BASE_URL" ]; then
     STRUCTMEM_PROXY_ARGS="$STRUCTMEM_PROXY_ARGS --structmem-base-url $STRUCTMEM_BASE_URL"
 fi
 
+LICOMEMORY_PROXY_ARGS=""
+if [ -n "$LICOMEMORY_API_KEY" ]; then
+    LICOMEMORY_PROXY_ARGS="--licomemory-api-key $LICOMEMORY_API_KEY"
+fi
+if [ -n "$LICOMEMORY_BASE_URL" ]; then
+    LICOMEMORY_PROXY_ARGS="$LICOMEMORY_PROXY_ARGS --licomemory-base-url $LICOMEMORY_BASE_URL"
+fi
+
 GIT_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
 GIT_DIRTY=$(git diff --quiet 2>/dev/null && echo "clean" || echo "dirty")
 
@@ -393,6 +414,7 @@ run_memory_system() {
         --dataset "$DATASET" \
         --memory "$MEMORY" \
         --output-dir "$RESULTS_BASE" \
+        --run-dir "$RESULTS_BASE" \
         --llm-model "$LLM_MODEL" \
         --num-memories "$NUM_MEMORIES" \
         --facts-per-group "$FACTS_PER_GROUP" \
@@ -525,6 +547,18 @@ if [ "$SKIP_STRUCTMEM" = false ]; then
 else
     echo ""
     echo ">>> Skipping structmem."
+fi
+
+# --------------------------------------------------------------------------
+# Step 7: licomemory
+# --------------------------------------------------------------------------
+if [ "$SKIP_LICOMEMORY" = false ]; then
+    run_memory_system "licomemory" "LiCoMemory" \
+        "--licomemory-model $LICOMEMORY_MODEL \
+         $LICOMEMORY_PROXY_ARGS"
+else
+    echo ""
+    echo ">>> Skipping licomemory."
 fi
 
 echo ""

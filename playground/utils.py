@@ -26,6 +26,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 from src import (  # noqa: E402
     AMEMMemorySystem,
     EverMemOSMemorySystem,
+    LiCoMemoryMemorySystem,
     Mem0MemorySystem,
     SimpleMemMemorySystem,
     StructMemMemorySystem,
@@ -90,7 +91,7 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
         "--memory",
         type=str,
         default="mem0",
-        choices=["mem0", "simplemem", "amem", "evermemos", "structmem"],
+        choices=["mem0", "simplemem", "amem", "evermemos", "structmem", "licomemory"],
         help="Memory system to use.",
     )
     parser.add_argument(
@@ -213,6 +214,34 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
     st.add_argument("--structmem-disable-summary", action="store_true", default=False,
                     help="Disable cross-event hierarchical summarization.")
 
+    # ── LiCoMemory ────────────────────────────────────────────────────────────
+    lc = parser.add_argument_group("licomemory options")
+    lc.add_argument("--licomemory-model", type=str, default="gpt-4.1-mini",
+                    help="LLM model for LiCoMemory entity/relationship extraction.")
+    lc.add_argument("--licomemory-api-key", type=str, default=None,
+                    help="API key for the LiCoMemory LLM (e.g. LiteLLM proxy key). Falls back to global --api-key.")
+    lc.add_argument("--licomemory-base-url", type=str, default=None,
+                    help="OpenAI-compatible base URL for LiCoMemory's LLM (e.g. LiteLLM proxy).")
+    lc.add_argument("--licomemory-max-tokens", type=int, default=32768)
+    lc.add_argument("--licomemory-temperature", type=float, default=0.0)
+    lc.add_argument("--licomemory-timeout", type=int, default=600)
+    lc.add_argument("--licomemory-max-concurrent", type=int, default=16)
+    lc.add_argument("--licomemory-embedding-api-type", type=str, default="hf",
+                    choices=["hf", "openai"],
+                    help="Embedding backend (hf=local sentence-transformers, openai=API).")
+    lc.add_argument("--licomemory-embedding-model", type=str, default="all-MiniLM-L6-v2",
+                    help="Sentence-transformer (or OpenAI) embedding model name.")
+    lc.add_argument("--licomemory-embedding-dimensions", type=int, default=384)
+    lc.add_argument("--licomemory-top-k-triples", type=int, default=20)
+    lc.add_argument("--licomemory-top-chunks", type=int, default=15)
+    lc.add_argument("--licomemory-enable-summary", action="store_true", default=False,
+                    help="Enable session summary generation + summary-based retrieval.")
+    lc.add_argument("--licomemory-enable-cognirank", action="store_true", default=False,
+                    help="Enable CogniRank (hierarchical temporal-semantic) reranking.")
+    lc.add_argument("--licomemory-data-type", type=str, default="LongmemEval",
+                    choices=["LongmemEval", "LOCOMO"],
+                    help="Dialogue parsing format used by LiCoMemory's chunker.")
+
 
 # ---------------------------------------------------------------------------
 # Memory-system factory
@@ -318,7 +347,28 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             run_dir=run_dir,
         )
 
+    if memory == "licomemory":
+        return LiCoMemoryMemorySystem(
+            num_memories=args.num_memories,
+            api_key=args.licomemory_api_key or api_key,
+            model=args.licomemory_model,
+            base_url=args.licomemory_base_url,
+            max_tokens=args.licomemory_max_tokens,
+            temperature=args.licomemory_temperature,
+            timeout=args.licomemory_timeout,
+            max_concurrent=args.licomemory_max_concurrent,
+            embedding_api_type=args.licomemory_embedding_api_type,
+            embedding_model=args.licomemory_embedding_model,
+            embedding_dimensions=args.licomemory_embedding_dimensions,
+            top_k_triples=args.licomemory_top_k_triples,
+            top_chunks=args.licomemory_top_chunks,
+            enable_summary=args.licomemory_enable_summary,
+            enable_cognirank=args.licomemory_enable_cognirank,
+            data_type=args.licomemory_data_type,
+            run_dir=run_dir,
+        )
+
     raise ValueError(
         f"Unknown memory system: {memory!r}. "
-        "Choose mem0, simplemem, amem, evermemos, or structmem."
+        "Choose mem0, simplemem, amem, evermemos, structmem, or licomemory."
     )

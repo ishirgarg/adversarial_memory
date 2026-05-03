@@ -2,7 +2,9 @@
 Memory system implementations for LLM conversations.
 """
 
+import asyncio
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -831,3 +833,274 @@ class SimpleMemMemorySystem:
                 line = f"{line} ({'; '.join(extras)})"
             parts.append(line)
         return parts
+
+
+class LiCoMemoryMemorySystem:
+    """
+    Memory system using LiCoMemory (https://github.com/EverMind-AI/LiCoMemory).
+
+    LiCoMemory is a lightweight cognitive agentic memory framework built around
+    a hierarchical Cognigraph of entities and relations. Conversations are
+    chunked into dialogue turns, an LLM extracts entities and relationships per
+    chunk, and a NetworkX-backed graph is built incrementally per session.
+    Retrieval combines entity-similarity search, triple ranking, and (optional)
+    session summaries.
+
+    Each conversation's turns are buffered in ``update_memory`` and committed
+    in ``finalize_conversation`` as a single LongmemEval-style session document
+    via ``GraphRAG.insert`` (with ``add=True`` for incremental graph growth).
+    ``get_memories`` runs ``GraphRAG.query`` and returns the retrieved triples
+    and chunks as the formatted memory context (the LLM-generated answer
+    produced by LiCoMemory itself is discarded — the eval framework owns
+    answer generation).
+
+    All on-disk state (the pickled graph, optional session summaries, embedding
+    cache) lives under ``run_dir / "licomemory"`` so independent eval runs in
+    parallel must each pass a unique ``run_dir``. Embeddings default to local
+    sentence-transformers (no API call).
+
+    LLM configuration: LiCoMemory's ``LLMManager`` only sends ``temperature``
+    and ``max_tokens`` per request (no ``top_p``), so it works with most
+    proxies out of the box. As a defensive measure we still wrap the
+    underlying AsyncOpenAI client to drop ``top_p`` when ``base_url`` is set,
+    matching the pattern used for mem0 / StructMem / LightMem.
+    """
+
+    def __init__(
+        self,
+        num_memories: int,
+        api_key: Optional[str] = None,
+        model: str = "gpt-4o-mini",
+        base_url: Optional[str] = None,
+        max_tokens: int = 32768,
+        temperature: float = 0.0,
+        timeout: int = 600,
+        enable_concurrent: bool = True,
+        max_concurrent: int = 16,
+        embedding_api_type: str = "hf",
+        embedding_model: str = "all-MiniLM-L6-v2",
+        embedding_dimensions: int = 384,
+        embedding_cache_dir: Optional[str] = None,
+        embedding_max_token_size: int = 512,
+        embedding_batch_size: int = 128,
+        top_k_triples: int = 20,
+        top_chunks: int = 15,
+        enable_summary: bool = False,
+        enable_cognirank: bool = False,
+        enable_full: bool = True,
+        enable_sessiontime: bool = True,
+        entity_merge_threshold: float = 0.85,
+        relationship_merge_threshold: float = 1.0,
+        data_type: str = "LongmemEval",
+        index_name: str = "licomemory_graph",
+        clear_on_init: bool = True,
+        run_dir: str | Path | None = None,
+    ):
+        # Resolve per-run base directory so parallel evals don't share a graph.
+        if run_dir is not None:
+            base_dir = Path(run_dir) / "licomemory"
+        else:
+            base_dir = Path("./licomemory_data")
+
+        if clear_on_init and base_dir.exists():
+            shutil.rmtree(base_dir)
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        licomemory_dir = Path(__file__).parent.parent / "LiCoMemory"
+        licomemory_dir_str = str(licomemory_dir)
+        if licomemory_dir_str not in sys.path:
+            sys.path.insert(0, licomemory_dir_str)
+
+        # Imports happen after sys.path mutation because LiCoMemory's modules
+        # use bare ``from init.config import ...`` style imports internally.
+        from init.config import (  # type: ignore
+            ChunkConfig,
+            Config,
+            EmbeddingConfig,
+            GraphConfig,
+            LLMConfig,
+            QueryLLMConfig,
+            RetrieverConfig,
+        )
+        from init.graph_rag import GraphRAG  # type: ignore
+
+        resolved_api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
+
+        config = Config()
+        config.data_type = data_type
+        config.index_name = index_name
+
+        config.llm = LLMConfig(
+            api_type="openai",
+            api_key=resolved_api_key,
+            base_url=base_url or "https://api.openai.com/v1",
+            model=model,
+            max_token=max_tokens,
+            temperature=temperature,
+            enable_concurrent=enable_concurrent,
+            max_concurrent=max_concurrent,
+            timeout=timeout,
+        )
+        # Empty query_llm — query phase reuses the main LLMManager.
+        config.query_llm = QueryLLMConfig()
+
+        config.embedding = EmbeddingConfig(
+            api_type=embedding_api_type,
+            api_key=resolved_api_key,
+            model=embedding_model,
+            cache_dir=embedding_cache_dir if embedding_cache_dir is not None else "",
+            dimensions=embedding_dimensions,
+            max_token_size=embedding_max_token_size,
+            embed_batch_size=embedding_batch_size,
+        )
+
+        config.chunk = ChunkConfig(dialogue_input=True)
+
+        # add=True triggers add_single_session per insert; first call seeds an
+        # empty graph rather than failing on missing pkl.
+        config.graph = GraphConfig(
+            graph_type="dynamic_memory",
+            force=False,
+            add=True,
+            entity_merge_threshold=entity_merge_threshold,
+            relationship_merge_threshold=relationship_merge_threshold,
+        )
+
+        config.retriever = RetrieverConfig(
+            top_k=num_memories,
+            top_k_triples=top_k_triples,
+            top_chunks=top_chunks,
+            enable_summary=enable_summary,
+            enable_CogniRank=enable_cognirank,
+            enable_full=enable_full,
+            enable_sessiontime=enable_sessiontime,
+        )
+
+        self.config = config
+        self.base_dir = str(base_dir)
+        self.num_memories = num_memories
+        self.data_type = data_type
+
+        self._graph_rag = GraphRAG(self.config, self.base_dir)
+
+        # Always wrap the underlying AsyncOpenAI client to:
+        #   1. Override the per-request max_tokens to the configured value.
+        #      LiCoMemory's _generate_internal hardcodes max_tokens=1000 and
+        #      ignores LLMManager.max_tokens. That cap is fine for terse
+        #      models (gpt-4.1-mini, claude-haiku) but truncates verbose ones
+        #      like gemini-3.1-pro-preview mid-extraction — typically before
+        #      any ("relationship"|...) lines are emitted, leaving every
+        #      entity as an isolated node that _remove_isolated_nodes then
+        #      prunes, collapsing the graph to empty.
+        #   2. Strip top_p when a custom base_url is in use (defensive — the
+        #      proxy variants we use reject top_p+temperature combos).
+        client = self._graph_rag.core.llm_manager.client
+        _orig_create = client.chat.completions.create
+        configured_max_tokens = max_tokens
+        strip_top_p = base_url is not None
+
+        async def _patched_create(*args, **kw):
+            if strip_top_p:
+                kw.pop("top_p", None)
+            kw["max_tokens"] = configured_max_tokens
+            return await _orig_create(*args, **kw)
+
+        client.chat.completions.create = _patched_create
+
+        self._buffered_messages: list[tuple[str, str]] = []
+        self._conversation_count = 0
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def _run_async(self, coro):
+        # Re-use a single event loop across calls so AsyncOpenAI's underlying
+        # httpx connection pool stays bound to a live loop. asyncio.run() would
+        # tear down the loop after every call and break pooled connections.
+        if self._loop is None or self._loop.is_closed():
+            self._loop = asyncio.new_event_loop()
+        return self._loop.run_until_complete(coro)
+
+    def _build_context(self, turns: list[tuple[str, str]]) -> str:
+        # Match LiCoMemory's LongmemEval ingestion format: a flat string of
+        # ``"role": "content"`` segments concatenated without separators. The
+        # dialog parser uses regex on these patterns, so we escape embedded
+        # quotes/backslashes but otherwise preserve content verbatim (the
+        # reference loader in dataset/longmem.py deliberately avoids
+        # json.dumps to keep \n characters intact).
+        parts: list[str] = []
+        for user_msg, asst_msg in turns:
+            u = str(user_msg).replace("\\", "\\\\").replace('"', '\\"')
+            a = str(asst_msg).replace("\\", "\\\\").replace('"', '\\"')
+            parts.append(f'"user": "{u}""assistant": "{a}"')
+        return "".join(parts)
+
+    def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
+        try:
+            result = self._run_async(self._graph_rag.query(prompt, question_time=""))
+        except Exception:
+            return ""
+
+        if not isinstance(result, dict):
+            return str(result) if result else ""
+
+        triples = result.get("triples") or []
+        chunks = result.get("chunks") or []
+
+        parts: list[str] = []
+        for triple in triples[: self.num_memories]:
+            src = triple.get("src", "")
+            rel = triple.get("relation", "")
+            tgt = triple.get("tgt", "")
+            timestamp = triple.get("timestamp", "")
+            line = f"- ({src}, {rel}, {tgt})"
+            if timestamp:
+                line += f" [t={timestamp}]"
+            parts.append(line)
+        for chunk in chunks:
+            parts.append(f"- {chunk}")
+        return "\n".join(parts)
+
+    def update_memory(
+        self, prompt: Prompt, response: LLMResponse, conversation_history: Conversation
+    ) -> None:
+        self._buffered_messages.append((prompt, response))
+
+    def finalize_conversation(self, conversation: Conversation) -> None:
+        if not self._buffered_messages:
+            return
+
+        context = self._build_context(self._buffered_messages)
+        self._conversation_count += 1
+        session_id = f"conv_{conversation.conversation_id}_{self._conversation_count}"
+        session_time = time.strftime("%Y/%m/%d (%a) %H:%M")
+
+        corpus = [
+            {
+                "context": context,
+                "session_time": session_time,
+                "session_id": session_id,
+                "doc_id": self._conversation_count - 1,
+            }
+        ]
+
+        try:
+            self._run_async(self._graph_rag.insert(corpus))
+        except Exception:
+            pass
+
+        self._buffered_messages = []
+
+    def get_all_memories(self) -> list[str]:
+        graph_obj = getattr(self._graph_rag.core, "graph", None)
+        graph_builder = getattr(graph_obj, "graph_builder", None)
+        graph = getattr(graph_builder, "graph", None) if graph_builder else None
+        if graph is None:
+            return []
+        memories: list[str] = []
+        for src, tgt, data in graph.edges(data=True):
+            relation = data.get("relation_name", "relates_to")
+            session_time = data.get("session_time", "")
+            line = f"({src}, {relation}, {tgt})"
+            if session_time:
+                line = f"{line} [t={session_time}]"
+            memories.append(line)
+        return memories
