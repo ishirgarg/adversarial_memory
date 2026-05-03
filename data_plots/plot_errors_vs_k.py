@@ -18,8 +18,8 @@ from load_data import (
     normalized_error,
 )
 
-OUT_DIR = Path(__file__).parent / "figures"
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR = Path(__file__).parent / "figures" / "error_breakdown"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DATASET_TITLES = {
     "coexisting": "Coexisting facts",
@@ -120,7 +120,7 @@ def plot_dataset(dataset: str):
     ax.grid(True, axis="y", alpha=0.3)
 
     fig.tight_layout(rect=[0, 0.05, 1, 1])
-    out = OUT_DIR / f"errors_vs_k_{dataset}.png"
+    out = OUT_DIR / f"{dataset}.png"
     fig.savefig(out, dpi=150)
     print(f"wrote {out}")
     plt.close(fig)

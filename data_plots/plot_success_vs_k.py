@@ -13,8 +13,8 @@ from load_data import (
     load_analysis,
 )
 
-OUT_DIR = Path(__file__).parent / "figures"
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR = Path(__file__).parent / "figures" / "success_vs_k"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DATASET_TITLES = {
     "coexisting": "Coexisting facts",
@@ -59,7 +59,7 @@ def main():
 
     fig.suptitle("Success rate vs. k", fontsize=14)
     fig.tight_layout()
-    out = OUT_DIR / "success_vs_k.png"
+    out = OUT_DIR / "overview.png"
     fig.savefig(out, dpi=150)
     print(f"wrote {out}")
 

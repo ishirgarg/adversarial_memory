@@ -1,0 +1,575 @@
+{
+  "simplemem__run_20260427_073958__67": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:07:57"
+  },
+  "amem__run_20260427_073958__2": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct",
+      "4": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:10:24"
+  },
+  "mem0__run_20260427_032628__67": {
+    "user_per_fact_categories": {
+      "0": "not_stored",
+      "1": "correct"
+    },
+    "user_error_type": "not_stored",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:11:09"
+  },
+  "mem0__run_20260427_052301__63": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:11:26"
+  },
+  "simplemem__run_20260430_124311__97": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:11:35"
+  },
+  "amem__run_20260427_032628__69": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:12:34"
+  },
+  "mem0__run_20260427_052301__10": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:12:53"
+  },
+  "mem0__run_20260427_032628__33": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:13:33"
+  },
+  "mem0__run_20260427_052301__45": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct",
+      "4": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:13:47"
+  },
+  "mem0__run_20260427_032628__10": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:14:01"
+  },
+  "simplemem__run_20260427_032628__77": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:14:47"
+  },
+  "simplemem__run_20260427_012926__56": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:15:11"
+  },
+  "simplemem__run_20260427_052301__15": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:15:40"
+  },
+  "amem__run_20260427_073958__29": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct",
+      "4": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:16:39"
+  },
+  "mem0__run_20260427_032628__12": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:17:14"
+  },
+  "mem0__run_20260427_012926__11": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:17:23"
+  },
+  "simplemem__run_20260427_052301__58": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:17:40"
+  },
+  "mem0__run_20260427_032628__98": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:17:48"
+  },
+  "simplemem__run_20260427_052301__57": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:18:06"
+  },
+  "mem0__run_20260427_073958__62": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:18:37"
+  },
+  "amem__run_20260427_052301__38": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:18:55"
+  },
+  "simplemem__run_20260427_012926__65": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:19:15"
+  },
+  "simplemem__run_20260427_012926__98": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:19:41"
+  },
+  "simplemem__run_20260427_012926__71": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "not_retrieved",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:20:06"
+  },
+  "mem0__run_20260427_032628__59": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:20:19"
+  },
+  "simplemem__run_20260427_052301__27": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:20:47"
+  },
+  "amem__run_20260427_032628__22": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:21:21"
+  },
+  "mem0__run_20260430_124311__95": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "correct",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:21:47"
+  },
+  "mem0__run_20260430_124311__93": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:22:04"
+  },
+  "simplemem__run_20260427_073958__6": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "correct",
+      "4": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:22:51"
+  },
+  "simplemem__run_20260427_012926__78": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:23:20"
+  },
+  "amem__run_20260427_052301__88": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct",
+      "3": "correct",
+      "4": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:24:26"
+  },
+  "simplemem__run_20260427_032628__22": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "correct",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:24:41"
+  },
+  "amem__run_20260427_032628__59": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:25:26"
+  },
+  "simplemem__run_20260427_032628__31": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "not_retrieved",
+      "3": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:25:46"
+  },
+  "simplemem__run_20260430_124311__49": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "not_retrieved",
+      "4": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:26:38"
+  },
+  "mem0__run_20260427_073958__7": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:26:47"
+  },
+  "mem0__run_20260427_032628__3": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "correct",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:28:03"
+  },
+  "mem0__run_20260427_073958__34": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:28:30"
+  },
+  "simplemem__run_20260427_012926__11": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "not_retrieved",
+      "3": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:28:48"
+  },
+  "simplemem__run_20260427_073958__10": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:29:11"
+  },
+  "mem0__run_20260430_124311__19": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved",
+      "3": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:30:01"
+  },
+  "simplemem__run_20260427_052301__91": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:30:21"
+  },
+  "simplemem__run_20260427_012926__95": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "not_retrieved",
+      "2": "correct",
+      "3": "not_retrieved",
+      "4": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:30:34"
+  },
+  "mem0__run_20260430_124311__18": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "not_retrieved",
+      "2": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:30:50"
+  },
+  "mem0__run_20260427_032628__58": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:31:05"
+  },
+  "simplemem__run_20260427_032628__16": {
+    "user_per_fact_categories": {
+      "0": "not_retrieved",
+      "1": "not_retrieved",
+      "2": "correct"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:31:36"
+  },
+  "mem0__run_20260427_012926__34": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:31:45"
+  },
+  "simplemem__run_20260427_012926__63": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct"
+    },
+    "user_error_type": "correct",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:32:35"
+  },
+  "mem0__run_20260430_124311__72": {
+    "user_per_fact_categories": {
+      "0": "correct",
+      "1": "correct",
+      "2": "not_retrieved"
+    },
+    "user_error_type": "not_retrieved",
+    "user_notes": "",
+    "complete": true,
+    "graded_at": "2026-05-02T02:32:48"
+  }
+}

@@ -93,10 +93,12 @@ class Mem0MemorySystem:
         embedding_model: str | None = None,
         ollama_base_url: str | None = None,
         clear_on_init: bool = True,
+        run_dir: str | Path | None = None,
     ):
         from mem0.configs.base import MemoryConfig
         from mem0.llms.configs import LlmConfig
         from mem0.embeddings.configs import EmbedderConfig
+        from mem0.vector_stores.configs import VectorStoreConfig
 
         llm_inner_cfg: dict = {"model": llm_model}
         if llm_api_key is not None:
@@ -118,6 +120,18 @@ class Mem0MemorySystem:
                 embedder_cfg_data["base_url"] = ollama_base_url
             config_kwargs["embedder"] = EmbedderConfig(
                 provider=embedding_provider, config=embedder_cfg_data
+            )
+
+        if run_dir is not None:
+            mem0_root = Path(run_dir) / "mem0"
+            mem0_root.mkdir(parents=True, exist_ok=True)
+            config_kwargs["history_db_path"] = str(mem0_root / "history.db")
+            config_kwargs["vector_store"] = VectorStoreConfig(
+                provider="qdrant",
+                config={
+                    "collection_name": "mem0",
+                    "path": str(mem0_root / "qdrant"),
+                },
             )
 
         self.memory = mem0.Memory(config=MemoryConfig(**config_kwargs))
@@ -196,6 +210,7 @@ class AMEMMemorySystem:
         evo_threshold: int = 100,
         api_key: str | None = None,
         base_url: str | None = None,
+        run_dir: str | Path | None = None,
     ):
         if api_key is None:
             api_key = os.getenv("OPENAI_API_KEY")
@@ -206,6 +221,12 @@ class AMEMMemorySystem:
 
         from agentic_memory.memory_system import AgenticMemorySystem  # type: ignore
 
+        directory: str | None = None
+        if run_dir is not None:
+            chroma_dir = Path(run_dir) / "amem" / "chroma"
+            chroma_dir.mkdir(parents=True, exist_ok=True)
+            directory = str(chroma_dir)
+
         self.num_memories = num_memories
         self._memory = AgenticMemorySystem(
             model_name=embedding_model,
@@ -214,6 +235,7 @@ class AMEMMemorySystem:
             evo_threshold=evo_threshold,
             api_key=api_key,
             base_url=base_url,
+            directory=directory,
         )
 
     def get_memories(self, prompt: Prompt, conversation: Conversation) -> str:
@@ -269,6 +291,18 @@ class EverMemOSMemorySystem:
     messages.
 
     Requires a running EverCore API server (default: http://localhost:1995).
+
+    LLM configuration:
+      `llm_provider` and `llm_model` (optional) are sent via PUT /api/v1/settings
+      to override the boundary + extraction LLM for this run. EverCore resolves
+      `api_key` and `base_url` server-side from `<PROVIDER>_API_KEY` and
+      `<PROVIDER>_BASE_URL` environment variables (see EverCore env.template) —
+      they cannot be injected per-request. To use a LiteLLM proxy, register it
+      as a provider in the EverCore env (e.g. set OPENAI_BASE_URL to the proxy
+      URL and OPENAI_API_KEY to the proxy key) before starting the server.
+
+      EverCore's OpenAIProvider sends only `temperature` + `max_tokens` (no
+      `top_p`), so it works with proxies that reject `top_p`+`temperature`.
     """
 
     def __init__(
@@ -280,13 +314,27 @@ class EverMemOSMemorySystem:
         memory_types: tuple[str, ...] = ("episodic_memory",),
         clear_on_init: bool = True,
         request_timeout: float = 500.0,
+        llm_provider: str | None = None,
+        llm_model: str | None = None,
+        run_dir: str | Path | None = None,
     ):
         self.num_memories = num_memories
         self.base_url = base_url.rstrip("/")
+        # EverMemOS state lives on the HTTP server, not the client. To isolate
+        # parallel runs against a single shared server we suffix the user_id
+        # with the run_dir basename so each run owns a private namespace.
+        # For full server-side isolation, point each run at its own EverCore
+        # process via a distinct base_url instead.
+        if run_dir is not None:
+            run_tag = Path(run_dir).resolve().name
+            base_uid = shared_user_id if shared_user_id is not None else "eval_user"
+            shared_user_id = f"{base_uid}__{run_tag}"
         self.shared_user_id = shared_user_id
         self.retrieve_method = retrieve_method
         self.memory_types = list(memory_types)
         self.request_timeout = request_timeout
+        self.llm_provider = llm_provider
+        self.llm_model = llm_model
         self._message_counter = 0
 
         self._init_settings()
@@ -294,9 +342,16 @@ class EverMemOSMemorySystem:
             self._delete_user(self.shared_user_id)
 
     def _init_settings(self) -> None:
+        payload: dict = {}
+        if self.llm_provider and self.llm_model:
+            scene_cfg = {"provider": self.llm_provider, "model": self.llm_model}
+            payload["llm_custom_setting"] = {
+                "boundary": scene_cfg,
+                "extraction": scene_cfg,
+            }
         requests.put(
             f"{self.base_url}/api/v1/settings",
-            json={},
+            json=payload,
             timeout=self.request_timeout,
         )
 
@@ -449,19 +504,28 @@ class StructMemMemorySystem:
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         embedding_dimension: int = 384,
         embedding_device: str = "cpu",
-        qdrant_path: str = "./structmem_qdrant",
+        qdrant_path: Optional[str] = None,
         collection_name: str = "structmem",
         enable_summary: bool = True,
         summary_time_window: int = 3600,
         summary_top_k_seeds: int = 15,
         offline_update_score_threshold: float = 0.9,
+        clear_on_init: bool = True,
         config_overrides: Optional[dict] = None,
+        run_dir: str | Path | None = None,
     ):
         self.num_memories = num_memories
         self.enable_summary = enable_summary
         self.summary_time_window = summary_time_window
         self.summary_top_k_seeds = summary_top_k_seeds
         self.offline_update_score_threshold = offline_update_score_threshold
+
+        if qdrant_path is None:
+            if run_dir is not None:
+                qdrant_path = str(Path(run_dir) / "structmem" / "qdrant")
+            else:
+                qdrant_path = "./structmem_qdrant"
+        Path(qdrant_path).mkdir(parents=True, exist_ok=True)
 
         lightmem_dir = Path(__file__).parent.parent / "LightMem" / "src"
         if str(lightmem_dir) not in sys.path:
@@ -533,6 +597,30 @@ class StructMemMemorySystem:
             config.update(config_overrides)
 
         self._lightmem = LightMemory.from_config(config)
+
+        if clear_on_init:
+            self._lightmem.embedding_retriever.reset()
+            summary_retriever = getattr(self._lightmem, "summary_retriever", None)
+            if summary_retriever is not None:
+                summary_retriever.reset()
+
+        # LightMem's OpenaiManager unconditionally sends `temperature`,
+        # `max_tokens`, and `top_p` on every chat-completions request. Some
+        # proxy backends (e.g. Anthropic Claude on a LiteLLM proxy) reject
+        # requests that specify both `temperature` and `top_p`. When a custom
+        # base_url is in use we wrap the underlying OpenAI client so `top_p`
+        # is dropped from every outgoing request (passing top_p=None still
+        # serializes as `"top_p": null` and is rejected by some proxies).
+        if base_url is not None:
+            client = self._lightmem.manager.client
+            _orig_create = client.chat.completions.create
+
+            def _patched_create(*args, **kw):
+                kw.pop("top_p", None)
+                return _orig_create(*args, **kw)
+
+            client.chat.completions.create = _patched_create
+
         self._buffered_turn: Optional[tuple[str, str]] = None
 
     def _add_turn(self, user_msg: str, assistant_msg: str, force: bool) -> None:
@@ -608,7 +696,7 @@ class SimpleMemMemorySystem:
         api_key: Optional[str] = None,
         model: str = "gpt-4.1-mini",
         base_url: Optional[str] = None,
-        db_path: str = "./lancedb_data",
+        db_path: Optional[str] = None,
         clear_db: bool = True,
         embedding_model: str = "all-MiniLM-L6-v2",
         embedding_dimension: int = 384,
@@ -629,10 +717,33 @@ class SimpleMemMemorySystem:
         enable_planning: bool = True,
         enable_reflection: bool = True,
         max_reflection_rounds: int = 2,
+        run_dir: str | Path | None = None,
     ):
         self.num_memories = num_memories
         simplemem_dir = Path(__file__).parent.parent / "SimpleMem"
         simplemem_dir_str = str(simplemem_dir)
+
+        if db_path is None:
+            db_path = (
+                str(Path(run_dir) / "simplemem" / "lancedb")
+                if run_dir is not None
+                else "./lancedb_data"
+            )
+
+        # SimpleMem internals do `import config` from sys.path. To isolate
+        # parallel runs we write a per-run config.py and prepend its directory
+        # to sys.path so it shadows the in-repo SimpleMem/config.py.
+        if run_dir is not None:
+            config_dir = Path(run_dir) / "simplemem"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            config_path = config_dir / "config.py"
+            sys.path.insert(0, str(config_dir))
+            # Drop any cached `config` module so the new import resolves to ours.
+            sys.modules.pop("config", None)
+        else:
+            config_dir = simplemem_dir
+            config_path = simplemem_dir / "config.py"
+
         if simplemem_dir_str not in sys.path:
             sys.path.insert(0, simplemem_dir_str)
 
@@ -643,7 +754,6 @@ class SimpleMemMemorySystem:
         resolved_keyword_top_k = keyword_top_k if keyword_top_k is not None else (num_memories if num_memories is not None else 5)
         resolved_structured_top_k = structured_top_k if structured_top_k is not None else (num_memories if num_memories is not None else 5)
 
-        config_path = simplemem_dir / "config.py"
         config_path.write_text(
             f"OPENAI_API_KEY = {resolved_api_key!r}\n"
             f"OPENAI_BASE_URL = {base_url!r}\n"

@@ -1,0 +1,1466 @@
+{
+  "generated_at": "2026-05-02T02:32:49",
+  "manifest_seed": 42,
+  "manifest_n": 50,
+  "n_graded": 50,
+  "fact_level": {
+    "total": 173,
+    "agreement": 172,
+    "agreement_rate": 0.9942196531791907,
+    "confusion_matrix_judge_to_user": {
+      "not_stored": {
+        "not_stored": 1,
+        "summary_error": 0,
+        "not_retrieved": 0,
+        "reasoning_error": 0,
+        "correct": 0
+      },
+      "summary_error": {
+        "not_stored": 0,
+        "summary_error": 0,
+        "not_retrieved": 1,
+        "reasoning_error": 0,
+        "correct": 0
+      },
+      "not_retrieved": {
+        "not_stored": 0,
+        "summary_error": 0,
+        "not_retrieved": 52,
+        "reasoning_error": 0,
+        "correct": 0
+      },
+      "reasoning_error": {
+        "not_stored": 0,
+        "summary_error": 0,
+        "not_retrieved": 0,
+        "reasoning_error": 0,
+        "correct": 0
+      },
+      "correct": {
+        "not_stored": 0,
+        "summary_error": 0,
+        "not_retrieved": 0,
+        "reasoning_error": 0,
+        "correct": 119
+      }
+    }
+  },
+  "trace_level": {
+    "total": 50,
+    "error_type_agreement": 49,
+    "error_type_agreement_rate": 0.98,
+    "judge_result_agreement": 50,
+    "judge_result_agreement_rate": 1.0,
+    "error_type_confusion_matrix_judge_to_user": {
+      "correct": {
+        "correct": 20
+      },
+      "not_stored": {
+        "not_stored": 1
+      },
+      "not_retrieved": {
+        "not_retrieved": 28
+      },
+      "summary_error": {
+        "not_retrieved": 1
+      }
+    }
+  },
+  "by_memory_system": {
+    "simplemem": {
+      "trace_total": 22,
+      "trace_agree_error_type": 22,
+      "fact_total": 76,
+      "fact_agree": 76,
+      "trace_agreement_rate": 1.0,
+      "fact_agreement_rate": 1.0
+    },
+    "amem": {
+      "trace_total": 7,
+      "trace_agree_error_type": 7,
+      "fact_total": 29,
+      "fact_agree": 29,
+      "trace_agreement_rate": 1.0,
+      "fact_agreement_rate": 1.0
+    },
+    "mem0": {
+      "trace_total": 21,
+      "trace_agree_error_type": 20,
+      "fact_total": 68,
+      "fact_agree": 67,
+      "trace_agreement_rate": 0.9523809523809523,
+      "fact_agreement_rate": 0.9852941176470589
+    }
+  },
+  "per_sample_log": [
+    {
+      "id": "simplemem__run_20260427_073958__67",
+      "memory_system": "simplemem",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "golden retriever",
+        "french bulldog"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_073958__2",
+      "memory_system": "amem",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "Pomodoro Technique",
+        "Bullet Journaling",
+        "Time Blocking",
+        "Getting Things Done",
+        "Mind Mapping"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__67",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "golden retriever",
+        "french bulldog"
+      ],
+      "judge_per_fact_categories": [
+        "not_stored",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_stored",
+        "correct"
+      ],
+      "judge_error_type": "not_stored",
+      "user_error_type": "not_stored",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_052301__63",
+      "memory_system": "mem0",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "necklaces",
+        "bracelets"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260430_124311__97",
+      "memory_system": "simplemem",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "yoga",
+        "spin"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_032628__69",
+      "memory_system": "amem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "vintage postcards",
+        "rare coins"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_052301__10",
+      "memory_system": "mem0",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "jazz",
+        "indie rock",
+        "classical"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__33",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "Spanish",
+        "Japanese",
+        "French",
+        "German"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_052301__45",
+      "memory_system": "mem0",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "avocado toast",
+        "pancakes",
+        "scrambled eggs",
+        "smoothie bowl",
+        "bagels"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__10",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "jazz",
+        "indie rock",
+        "classical"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_032628__77",
+      "memory_system": "simplemem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "backpacking",
+        "car camping",
+        "glamping",
+        "survival camping",
+        "RV camping"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__56",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "small dinner parties",
+        "outdoor barbecues"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_052301__15",
+      "memory_system": "simplemem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "meditation",
+        "journaling",
+        "morning jog"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_073958__29",
+      "memory_system": "amem",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "electric sedan",
+        "off-road SUV",
+        "convertible sports car",
+        "compact hatchback",
+        "luxury limousine"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__12",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "tacos",
+        "pretzels",
+        "falafel",
+        "bao buns",
+        "churros"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_012926__11",
+      "memory_system": "mem0",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "musical theater",
+        "improvisational theater",
+        "classical drama",
+        "experimental theater"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_052301__58",
+      "memory_system": "simplemem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "Python",
+        "JavaScript",
+        "Rust"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__98",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "espresso",
+        "cold brew"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_052301__57",
+      "memory_system": "simplemem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "art museums",
+        "science museums",
+        "history museums"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_073958__62",
+      "memory_system": "mem0",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "coding",
+        "public speaking",
+        "photography"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_052301__38",
+      "memory_system": "amem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "bullet journaling",
+        "mind mapping",
+        "digital typing",
+        "sketchnoting"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__65",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "spaced repetition",
+        "active recall",
+        "mind mapping"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__98",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "espresso",
+        "cold brew"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__71",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "technology",
+        "true crime",
+        "personal finance"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__59",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "power nap",
+        "siesta",
+        "catnap"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_052301__27",
+      "memory_system": "simplemem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "grilling",
+        "steaming",
+        "slow cooking",
+        "saut\u00e9ing",
+        "baking"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_032628__22",
+      "memory_system": "amem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "reading",
+        "journaling",
+        "meditation",
+        "light stretching",
+        "herbal tea"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260430_124311__95",
+      "memory_system": "mem0",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "soccer",
+        "basketball",
+        "tennis",
+        "baseball",
+        "cycling"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260430_124311__93",
+      "memory_system": "mem0",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "early to bed",
+        "naps during the day",
+        "sleep with white noise"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_073958__6",
+      "memory_system": "simplemem",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "wildlife conservation",
+        "space exploration",
+        "ancient civilizations",
+        "climate change",
+        "modern art"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__78",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "karaoke",
+        "board games",
+        "dancing",
+        "cocktail making"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_052301__88",
+      "memory_system": "amem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "gratitude journaling",
+        "reflective journaling",
+        "art journaling",
+        "dream journaling",
+        "prompt journaling"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_032628__22",
+      "memory_system": "simplemem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "reading",
+        "journaling",
+        "meditation",
+        "light stretching",
+        "herbal tea"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "amem__run_20260427_032628__59",
+      "memory_system": "amem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "power nap",
+        "siesta",
+        "catnap"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_032628__31",
+      "memory_system": "simplemem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "meditation",
+        "journaling",
+        "nature walks",
+        "breathing exercises"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260430_124311__49",
+      "memory_system": "simplemem",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "margarita",
+        "old fashioned",
+        "mojito",
+        "negroni",
+        "cosmopolitan"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_073958__7",
+      "memory_system": "mem0",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "bohemian",
+        "minimalist"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__3",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "mountains",
+        "beaches",
+        "forests"
+      ],
+      "judge_per_fact_categories": [
+        "summary_error",
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "summary_error",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "2/3",
+      "trace_agreement": false
+    },
+    {
+      "id": "mem0__run_20260427_073958__34",
+      "memory_system": "mem0",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "sneakers",
+        "loafers",
+        "boots"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__11",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "musical theater",
+        "improvisational theater",
+        "classical drama",
+        "experimental theater"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_073958__10",
+      "memory_system": "simplemem",
+      "run": "run_20260427_073958",
+      "preferences": [
+        "jazz",
+        "indie rock",
+        "classical"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260430_124311__19",
+      "memory_system": "mem0",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "immersion",
+        "flashcards",
+        "language exchange partners",
+        "online courses"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "4/4",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_052301__91",
+      "memory_system": "simplemem",
+      "run": "run_20260427_052301",
+      "preferences": [
+        "mid-century modern",
+        "bohemian",
+        "industrial"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__95",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "soccer",
+        "basketball",
+        "tennis",
+        "baseball",
+        "cycling"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "correct",
+        "not_retrieved",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "5/5",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260430_124311__18",
+      "memory_system": "mem0",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "curly natural",
+        "sleek straight",
+        "messy bun"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_032628__58",
+      "memory_system": "mem0",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "Python",
+        "JavaScript",
+        "Rust"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_032628__16",
+      "memory_system": "simplemem",
+      "run": "run_20260427_032628",
+      "preferences": [
+        "Italian",
+        "Japanese",
+        "Mexican"
+      ],
+      "judge_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "not_retrieved",
+        "not_retrieved",
+        "correct"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260427_012926__34",
+      "memory_system": "mem0",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "sneakers",
+        "loafers",
+        "boots"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    },
+    {
+      "id": "simplemem__run_20260427_012926__63",
+      "memory_system": "simplemem",
+      "run": "run_20260427_012926",
+      "preferences": [
+        "necklaces",
+        "bracelets"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct"
+      ],
+      "judge_error_type": "correct",
+      "user_error_type": "correct",
+      "judge_correctly_invoked": true,
+      "user_notes": "",
+      "fact_agreement": "2/2",
+      "trace_agreement": true
+    },
+    {
+      "id": "mem0__run_20260430_124311__72",
+      "memory_system": "mem0",
+      "run": "run_20260430_124311",
+      "preferences": [
+        "Japan",
+        "Iceland",
+        "Italy"
+      ],
+      "judge_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "user_per_fact_categories": [
+        "correct",
+        "correct",
+        "not_retrieved"
+      ],
+      "judge_error_type": "not_retrieved",
+      "user_error_type": "not_retrieved",
+      "judge_correctly_invoked": null,
+      "user_notes": "",
+      "fact_agreement": "3/3",
+      "trace_agreement": true
+    }
+  ]
+}

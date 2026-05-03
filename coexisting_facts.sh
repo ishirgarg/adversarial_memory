@@ -14,6 +14,8 @@
 #   --skip-mem0           Skip mem0 evaluation + analysis
 #   --skip-simplemem      Skip simplemem evaluation + analysis
 #   --skip-amem           Skip amem evaluation + analysis
+#   --skip-evermemos      Skip evermemos evaluation + analysis (default: skipped)
+#   --skip-structmem      Skip structmem evaluation + analysis (default: skipped)
 #   --skip-analysis       Skip all error analysis steps
 #
 # Core:
@@ -54,6 +56,20 @@
 #   --simplemem-max-parallel-workers N     (default: 16)
 #   --simplemem-max-retrieval-workers N    (default: 8)
 #   --simplemem-max-reflection-rounds N    (default: 2)
+#
+# evermemos (requires EverCore HTTP server, default localhost:1995):
+#   --evermemos-base-url URL          (default: http://localhost:1995)
+#   --evermemos-llm-provider P        Override boundary+extraction provider via /api/v1/settings
+#   --evermemos-llm-model M           Override boundary+extraction model
+#   --evermemos-retrieve-method M     keyword|vector|hybrid|agentic (default: hybrid)
+#
+# structmem (requires vendored LightMem at <repo_root>/LightMem):
+#   --structmem-model M               (default: gpt-4.1-mini)
+#   --structmem-api-key KEY
+#   --structmem-base-url URL
+#   --structmem-embedding-model M     (default: sentence-transformers/all-MiniLM-L6-v2)
+#   --structmem-qdrant-path PATH      (default: ./structmem_qdrant)
+#   --structmem-collection-name NAME  (default: structmem)
 
 set -euo pipefail
 
@@ -66,6 +82,8 @@ SKIP_GENERATE=true
 SKIP_MEM0=false
 SKIP_SIMPLEMEM=false
 SKIP_AMEM=false
+SKIP_EVERMEMOS=true
+SKIP_STRUCTMEM=true
 SKIP_ANALYSIS=false
 
 # Dataset
@@ -116,6 +134,20 @@ SIMPLEMEM_MAX_PARALLEL_WORKERS=16
 SIMPLEMEM_MAX_RETRIEVAL_WORKERS=8
 SIMPLEMEM_MAX_REFLECTION_ROUNDS=2
 
+# evermemos
+EVERMEMOS_BASE_URL="http://localhost:1995"
+EVERMEMOS_LLM_PROVIDER=""
+EVERMEMOS_LLM_MODEL=""
+EVERMEMOS_RETRIEVE_METHOD="hybrid"
+
+# structmem
+STRUCTMEM_MODEL="gpt-4.1-mini"
+STRUCTMEM_API_KEY=""
+STRUCTMEM_BASE_URL=""
+STRUCTMEM_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
+STRUCTMEM_QDRANT_PATH="./structmem_qdrant"
+STRUCTMEM_COLLECTION_NAME="structmem"
+
 # --------------------------------------------------------------------------
 # Argument parsing
 # --------------------------------------------------------------------------
@@ -126,6 +158,10 @@ while [[ $# -gt 0 ]]; do
         --skip-mem0)       SKIP_MEM0=true;       shift ;;
         --skip-simplemem)  SKIP_SIMPLEMEM=true;  shift ;;
         --skip-amem)       SKIP_AMEM=true;       shift ;;
+        --skip-evermemos)  SKIP_EVERMEMOS=true;  shift ;;
+        --skip-structmem)  SKIP_STRUCTMEM=true;  shift ;;
+        --run-evermemos)   SKIP_EVERMEMOS=false; shift ;;
+        --run-structmem)   SKIP_STRUCTMEM=false; shift ;;
         --skip-analysis)   SKIP_ANALYSIS=true;   shift ;;
 
         # Dataset / generation
@@ -175,6 +211,20 @@ while [[ $# -gt 0 ]]; do
         --simplemem-max-parallel-workers)     SIMPLEMEM_MAX_PARALLEL_WORKERS="$2";     shift 2 ;;
         --simplemem-max-retrieval-workers)    SIMPLEMEM_MAX_RETRIEVAL_WORKERS="$2";    shift 2 ;;
         --simplemem-max-reflection-rounds)    SIMPLEMEM_MAX_REFLECTION_ROUNDS="$2";    shift 2 ;;
+
+        # evermemos
+        --evermemos-base-url)         EVERMEMOS_BASE_URL="$2";        shift 2 ;;
+        --evermemos-llm-provider)     EVERMEMOS_LLM_PROVIDER="$2";    shift 2 ;;
+        --evermemos-llm-model)        EVERMEMOS_LLM_MODEL="$2";       shift 2 ;;
+        --evermemos-retrieve-method)  EVERMEMOS_RETRIEVE_METHOD="$2"; shift 2 ;;
+
+        # structmem
+        --structmem-model)            STRUCTMEM_MODEL="$2";            shift 2 ;;
+        --structmem-api-key)          STRUCTMEM_API_KEY="$2";          shift 2 ;;
+        --structmem-base-url)         STRUCTMEM_BASE_URL="$2";         shift 2 ;;
+        --structmem-embedding-model)  STRUCTMEM_EMBEDDING_MODEL="$2";  shift 2 ;;
+        --structmem-qdrant-path)      STRUCTMEM_QDRANT_PATH="$2";      shift 2 ;;
+        --structmem-collection-name)  STRUCTMEM_COLLECTION_NAME="$2";  shift 2 ;;
 
         *)
             echo "Unknown argument: $1" >&2
@@ -230,6 +280,22 @@ if [ -n "$SIMPLEMEM_BASE_URL" ]; then
     SIMPLEMEM_PROXY_ARGS="$SIMPLEMEM_PROXY_ARGS --simplemem-base-url $SIMPLEMEM_BASE_URL"
 fi
 
+EVERMEMOS_LLM_ARGS=""
+if [ -n "$EVERMEMOS_LLM_PROVIDER" ]; then
+    EVERMEMOS_LLM_ARGS="--evermemos-llm-provider $EVERMEMOS_LLM_PROVIDER"
+fi
+if [ -n "$EVERMEMOS_LLM_MODEL" ]; then
+    EVERMEMOS_LLM_ARGS="$EVERMEMOS_LLM_ARGS --evermemos-llm-model $EVERMEMOS_LLM_MODEL"
+fi
+
+STRUCTMEM_PROXY_ARGS=""
+if [ -n "$STRUCTMEM_API_KEY" ]; then
+    STRUCTMEM_PROXY_ARGS="--structmem-api-key $STRUCTMEM_API_KEY"
+fi
+if [ -n "$STRUCTMEM_BASE_URL" ]; then
+    STRUCTMEM_PROXY_ARGS="$STRUCTMEM_PROXY_ARGS --structmem-base-url $STRUCTMEM_BASE_URL"
+fi
+
 # Build optional coexist-in-same-chat flag
 COEXIST_ARG=""
 if [ "$COEXIST_IN_SAME_CHAT" = true ]; then
@@ -251,6 +317,8 @@ echo "  Run generate:       $([ "$SKIP_GENERATE" = false ] && echo yes || echo S
 echo "  Run mem0:           $([ "$SKIP_MEM0"     = false ] && echo yes || echo SKIPPED)"
 echo "  Run simplemem:      $([ "$SKIP_SIMPLEMEM" = false ] && echo yes || echo SKIPPED)"
 echo "  Run amem:           $([ "$SKIP_AMEM"     = false ] && echo yes || echo SKIPPED)"
+echo "  Run evermemos:      $([ "$SKIP_EVERMEMOS" = false ] && echo yes || echo SKIPPED)"
+echo "  Run structmem:      $([ "$SKIP_STRUCTMEM" = false ] && echo yes || echo SKIPPED)"
 echo "  Run analysis:       $([ "$SKIP_ANALYSIS" = false ] && echo yes || echo SKIPPED)"
 echo ""
 echo "  --- Dataset generation ---"
@@ -403,6 +471,34 @@ if [ "$SKIP_AMEM" = false ]; then
 else
     echo ""
     echo ">>> Skipping amem."
+fi
+
+# --------------------------------------------------------------------------
+# Step 5: evermemos
+# --------------------------------------------------------------------------
+if [ "$SKIP_EVERMEMOS" = false ]; then
+    run_memory_system "evermemos" "EverMemOS" \
+        "--evermemos-base-url $EVERMEMOS_BASE_URL \
+         --evermemos-retrieve-method $EVERMEMOS_RETRIEVE_METHOD \
+         $EVERMEMOS_LLM_ARGS"
+else
+    echo ""
+    echo ">>> Skipping evermemos."
+fi
+
+# --------------------------------------------------------------------------
+# Step 6: structmem
+# --------------------------------------------------------------------------
+if [ "$SKIP_STRUCTMEM" = false ]; then
+    run_memory_system "structmem" "StructMem" \
+        "--structmem-model $STRUCTMEM_MODEL \
+         --structmem-embedding-model $STRUCTMEM_EMBEDDING_MODEL \
+         --structmem-qdrant-path $STRUCTMEM_QDRANT_PATH \
+         --structmem-collection-name $STRUCTMEM_COLLECTION_NAME \
+         $STRUCTMEM_PROXY_ARGS"
+else
+    echo ""
+    echo ">>> Skipping structmem."
 fi
 
 echo ""

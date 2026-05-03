@@ -23,7 +23,13 @@ _PROJECT_ROOT = Path(__file__).parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src import AMEMMemorySystem, Mem0MemorySystem, SimpleMemMemorySystem  # noqa: E402
+from src import (  # noqa: E402
+    AMEMMemorySystem,
+    EverMemOSMemorySystem,
+    Mem0MemorySystem,
+    SimpleMemMemorySystem,
+    StructMemMemorySystem,
+)
 
 # ---------------------------------------------------------------------------
 # JSON helpers
@@ -84,7 +90,7 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
         "--memory",
         type=str,
         default="mem0",
-        choices=["mem0", "simplemem", "amem"],
+        choices=["mem0", "simplemem", "amem", "evermemos", "structmem"],
         help="Memory system to use.",
     )
     parser.add_argument(
@@ -98,6 +104,18 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
         type=str,
         default="eval_user",
         help="Shared user-id for memory systems that namespace by user.",
+    )
+    parser.add_argument(
+        "--run-dir",
+        type=str,
+        default=None,
+        help=(
+            "Per-run directory rooting all memory-system state (DBs, vector "
+            "indices, generated config files). Required when running multiple "
+            "evals in parallel on one machine — each worker should pass a "
+            "unique --run-dir. When omitted, each backend uses its default "
+            "(shared) location."
+        ),
     )
 
     # ── mem0 ─────────────────────────────────────────────────────────────────
@@ -160,6 +178,41 @@ def add_memory_system_args(parser: argparse.ArgumentParser) -> None:
     sm.add_argument("--simplemem-enable-reflection", action="store_true", default=True)
     sm.add_argument("--simplemem-max-reflection-rounds", type=int, default=2)
 
+    # ── EverMemOS ─────────────────────────────────────────────────────────────
+    em = parser.add_argument_group("evermemos options")
+    em.add_argument("--evermemos-base-url", type=str, default="http://localhost:1995",
+                    help="EverCore HTTP API base URL.")
+    em.add_argument("--evermemos-llm-provider", type=str, default=None,
+                    help=("Override the EverCore boundary+extraction LLM provider "
+                          "(e.g. openai, openrouter). Server reads <PROVIDER>_API_KEY "
+                          "and <PROVIDER>_BASE_URL from its environment."))
+    em.add_argument("--evermemos-llm-model", type=str, default=None,
+                    help="Override the EverCore boundary+extraction LLM model.")
+    em.add_argument("--evermemos-retrieve-method", type=str, default="hybrid",
+                    choices=["keyword", "vector", "hybrid", "agentic"],
+                    help="EverCore retrieval method.")
+
+    # ── StructMem ─────────────────────────────────────────────────────────────
+    st = parser.add_argument_group("structmem options")
+    st.add_argument("--structmem-model", type=str, default="gpt-4.1-mini",
+                    help="LLM model for StructMem memory operations.")
+    st.add_argument("--structmem-api-key", type=str, default=None,
+                    help="API key for the StructMem LLM (e.g. LiteLLM proxy key). Falls back to global --api-key.")
+    st.add_argument("--structmem-base-url", type=str, default=None,
+                    help="OpenAI-compatible base URL for StructMem (e.g. LiteLLM proxy).")
+    st.add_argument("--structmem-embedding-model", type=str,
+                    default="sentence-transformers/all-MiniLM-L6-v2",
+                    help="HuggingFace embedding model for StructMem.")
+    st.add_argument("--structmem-embedding-dimension", type=int, default=384)
+    st.add_argument("--structmem-embedding-device", type=str, default="cpu")
+    st.add_argument("--structmem-segmenter-model", type=str, default="bert-base-uncased")
+    st.add_argument("--structmem-segmenter-device", type=str, default="cpu")
+    st.add_argument("--structmem-qdrant-path", type=str, default="./structmem_qdrant",
+                    help="On-disk Qdrant storage root for StructMem.")
+    st.add_argument("--structmem-collection-name", type=str, default="structmem")
+    st.add_argument("--structmem-disable-summary", action="store_true", default=False,
+                    help="Disable cross-event hierarchical summarization.")
+
 
 # ---------------------------------------------------------------------------
 # Memory-system factory
@@ -173,6 +226,7 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
     :func:`add_memory_system_args`.
     """
     memory = args.memory
+    run_dir = getattr(args, "run_dir", None)
 
     if memory == "mem0":
         return Mem0MemorySystem(
@@ -185,15 +239,21 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             embedding_provider=args.mem0_embedding_provider,
             embedding_model=args.mem0_embedding_model,
             ollama_base_url=args.mem0_ollama_base_url,
+            run_dir=run_dir,
         )
 
     if memory == "simplemem":
+        # When --run-dir is set, route LanceDB under it unless the caller
+        # explicitly overrode --simplemem-db-path.
+        sm_db_path = args.simplemem_db_path
+        if run_dir is not None and sm_db_path == "./lancedb_data":
+            sm_db_path = None
         return SimpleMemMemorySystem(
             num_memories=args.num_memories,
             api_key=args.simplemem_api_key or api_key,
             model=args.simplemem_model,
             base_url=args.simplemem_base_url,
-            db_path=args.simplemem_db_path,
+            db_path=sm_db_path,
             clear_db=True,
             embedding_model=args.simplemem_embedding_model,
             embedding_dimension=args.simplemem_embedding_dimension,
@@ -211,6 +271,7 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             enable_planning=args.simplemem_enable_planning,
             enable_reflection=args.simplemem_enable_reflection,
             max_reflection_rounds=args.simplemem_max_reflection_rounds,
+            run_dir=run_dir,
         )
 
     if memory == "amem":
@@ -222,6 +283,42 @@ def create_memory_system(args: argparse.Namespace, api_key: str) -> Any:
             evo_threshold=args.amem_evo_threshold,
             api_key=args.amem_api_key or api_key,
             base_url=args.amem_base_url,
+            run_dir=run_dir,
         )
 
-    raise ValueError(f"Unknown memory system: {memory!r}. Choose mem0, simplemem, or amem.")
+    if memory == "evermemos":
+        return EverMemOSMemorySystem(
+            num_memories=args.num_memories,
+            base_url=args.evermemos_base_url,
+            shared_user_id=args.shared_user_id,
+            retrieve_method=args.evermemos_retrieve_method,
+            llm_provider=args.evermemos_llm_provider,
+            llm_model=args.evermemos_llm_model,
+            run_dir=run_dir,
+        )
+
+    if memory == "structmem":
+        # Likewise, only honour the default qdrant path when --run-dir is unset.
+        st_qdrant_path = args.structmem_qdrant_path
+        if run_dir is not None and st_qdrant_path == "./structmem_qdrant":
+            st_qdrant_path = None
+        return StructMemMemorySystem(
+            num_memories=args.num_memories,
+            api_key=args.structmem_api_key or api_key,
+            model=args.structmem_model,
+            base_url=args.structmem_base_url,
+            segmenter_model=args.structmem_segmenter_model,
+            segmenter_device=args.structmem_segmenter_device,
+            embedding_model=args.structmem_embedding_model,
+            embedding_dimension=args.structmem_embedding_dimension,
+            embedding_device=args.structmem_embedding_device,
+            qdrant_path=st_qdrant_path,
+            collection_name=args.structmem_collection_name,
+            enable_summary=not args.structmem_disable_summary,
+            run_dir=run_dir,
+        )
+
+    raise ValueError(
+        f"Unknown memory system: {memory!r}. "
+        "Choose mem0, simplemem, amem, evermemos, or structmem."
+    )

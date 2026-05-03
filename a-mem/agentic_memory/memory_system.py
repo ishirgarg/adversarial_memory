@@ -3,7 +3,7 @@ from typing import List, Dict, Optional, Any, Tuple
 import uuid
 from datetime import datetime
 from .llm_controller import LLMController
-from .retrievers import ChromaRetriever
+from .retrievers import ChromaRetriever, PersistentChromaRetriever
 import json
 import logging
 from rank_bm25 import BM25Okapi
@@ -96,7 +96,8 @@ class AgenticMemorySystem:
                  llm_model: str = "gpt-4o-mini",
                  evo_threshold: int = 100,
                  api_key: Optional[str] = None,
-                 base_url: Optional[str] = None):
+                 base_url: Optional[str] = None,
+                 directory: Optional[str] = None):
         """Initialize the memory system.
 
         Args:
@@ -106,19 +107,25 @@ class AgenticMemorySystem:
             evo_threshold: Number of memories before triggering evolution
             api_key: API key for the LLM service
             base_url: Optional custom base URL for the LLM service (e.g. LiteLLM proxy)
+            directory: ChromaDB persistence directory. Defaults to ~/.chromadb
+                when None. Pass a per-run path to isolate state across parallel
+                evaluation runs.
         """
         self.memories = {}
         self.model_name = model_name
-        # Initialize ChromaDB retriever with empty collection
+        self._chroma_directory = directory
+        # Initialize ChromaDB retriever with empty collection. When a directory
+        # is supplied we use the persistent variant so state lives on disk under
+        # that directory (used to isolate parallel evaluation runs).
         try:
             # First try to reset the collection if it exists
-            temp_retriever = ChromaRetriever(collection_name="memories",model_name=self.model_name)
+            temp_retriever = self._make_retriever()
             temp_retriever.client.reset()
         except Exception as e:
             logger.warning(f"Could not reset ChromaDB collection: {e}")
-            
+
         # Create a fresh retriever instance
-        self.retriever = ChromaRetriever(collection_name="memories",model_name=self.model_name)
+        self.retriever = self._make_retriever()
         
         # Initialize LLM controller
         self.llm_controller = LLMController(llm_backend, llm_model, api_key, base_url=base_url)
@@ -265,10 +272,26 @@ class AgenticMemorySystem:
                 self.consolidate_memories()
         return note.id
     
+    def _make_retriever(self):
+        if self._chroma_directory is not None:
+            # extend=True so re-instantiation against an existing per-run dir
+            # reuses the collection rather than raising. Caller controls reset
+            # by clearing the directory.
+            return PersistentChromaRetriever(
+                collection_name="memories",
+                model_name=self.model_name,
+                directory=self._chroma_directory,
+                extend=True,
+            )
+        return ChromaRetriever(
+            collection_name="memories",
+            model_name=self.model_name,
+        )
+
     def consolidate_memories(self):
         """Consolidate memories: update retriever with new documents"""
         # Reset ChromaDB collection
-        self.retriever = ChromaRetriever(collection_name="memories",model_name=self.model_name)
+        self.retriever = self._make_retriever()
         
         # Re-add all memory documents with their complete metadata
         for memory in self.memories.values():

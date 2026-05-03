@@ -17,8 +17,8 @@ from load_data import (
     normalized_error,
 )
 
-OUT_DIR = Path(__file__).parent / "figures"
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR = Path(__file__).parent / "figures" / "coexisting_by_nfacts"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 ERROR_COLORS = {
     "storage": "#ff7f0e",
@@ -97,7 +97,7 @@ def plot_for_memory(memory: str):
                bbox_to_anchor=(0.99, 0.97))
 
     fig.tight_layout(rect=[0, 0, 1, 0.94])
-    out = OUT_DIR / f"coexisting_errors_by_nfacts_{memory}.png"
+    out = OUT_DIR / f"errors_{memory}.png"
     fig.savefig(out, dpi=150)
     print(f"wrote {out}")
     plt.close(fig)
@@ -136,7 +136,7 @@ def plot_success_by_n_facts():
     axes[0].set_ylabel("success rate")
     fig.suptitle("Coexisting facts — success rate vs. # coexisting facts", fontsize=13)
     fig.tight_layout(rect=[0, 0, 1, 0.93])
-    out = OUT_DIR / "coexisting_success_by_nfacts.png"
+    out = OUT_DIR / "success.png"
     fig.savefig(out, dpi=150)
     print(f"wrote {out}")
     plt.close(fig)
