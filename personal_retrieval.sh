@@ -77,7 +77,7 @@ set -euo pipefail
 # --------------------------------------------------------------------------
 
 # Skip flags
-SKIP_GENERATE=false
+SKIP_GENERATE=true
 SKIP_MEM0=false
 SKIP_SIMPLEMEM=false
 SKIP_AMEM=false
