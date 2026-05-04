@@ -490,9 +490,9 @@ class StructMemMemorySystem:
     finalize_conversation triggers cross-event summarization and the offline
     update queue.
 
-    Wraps the public LightMemory class only. Requires the vendored LightMem
-    repo at <repo_root>/LightMem and the transformers/qdrant dependencies it
-    pulls in.
+    Wraps the public LightMemory class only. The vendored repo at
+    <repo_root>/LightMem is the StructMem variant of LightMem (despite the
+    folder name) and provides the transformers/qdrant dependencies it pulls in.
     """
 
     def __init__(
@@ -553,6 +553,7 @@ class StructMemMemorySystem:
                 "configs": {
                     "model_name": segmenter_model,
                     "device_map": segmenter_device,
+                    "model_config": {"attn_implementation": "eager"},
                 },
             },
             "messages_use": "user_only",
@@ -675,7 +676,10 @@ class StructMemMemorySystem:
         entries, _ = self._lightmem.embedding_retriever.scroll(limit=limit)
         out = []
         for entry in entries or []:
-            payload = entry.get("payload", {}) if isinstance(entry, dict) else {}
+            if isinstance(entry, dict):
+                payload = entry.get("payload", {}) or {}
+            else:
+                payload = getattr(entry, "payload", {}) or {}
             time_stamp = payload.get("time_stamp", "")
             memory = payload.get("memory", "")
             if memory:

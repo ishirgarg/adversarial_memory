@@ -1,27 +1,33 @@
 """
-analyze_errors.py -- Grade and classify errors in long-hop (MemDaily) traces.
+analyze_errors.py — Grade and classify errors in long-hop chain traces.
 
-Each target support message is independently classified through a staged pipeline:
+For each chain (graded trace), every fact in the chain is independently
+classified through a 3-stage pipeline:
 
-  Stage 1 — Storage check (parallel):   is the target message in ALL_MEMORIES?
+  Stage 1 — Storage check (parallel):   is the fact present in ALL_MEMORIES?
   Stage 2 — Summary check (parallel):   is the stored version faithful?
-  Stage 3 — Retrieval check (parallel): was the target message in RETRIEVED_MEMORIES?
+  Stage 3 — Retrieval check (parallel): was the fact in RETRIEVED_MEMORIES?
 
-Per-target-message categories:
-  not_stored    — target absent from ALL_MEMORIES
-  summary_error — target present but specific fact destroyed in summarization
-  not_retrieved — target stored faithfully but not surfaced at retrieval time
-  correct       — target faithfully stored and retrieved
+Memory systems may legitimately MERGE several facts of a chain into a single
+memory entry (e.g. "A -> B and B -> C" stored as one summary). Such merging
+counts as STORED/RETRIEVED/FAITHFUL as long as the fact's specific link is
+still recoverable from the merged memory.
 
-If ALL targets reach "correct", one final invocation check determines whether the model
-correctly used the retrieved memories to answer (reasoning_error vs. correct).
+Per-fact categories:
+  not_stored    — fact's link absent from ALL_MEMORIES (no merged entry covers it)
+  summary_error — link present but corrupted / merged in a way that loses identity
+  not_retrieved — link stored faithfully but not surfaced at retrieval time
+  correct       — link faithfully stored AND retrieved
 
-Per-target distributions are reported overall, by question_type, and by support_set_size.
+If ALL facts reach "correct", an invocation check determines whether the model
+correctly chained them to produce the ground-truth terminal entity
+(reasoning_error vs. correct).
+
+Per-fact distributions are reported overall and broken down by hop_count.
 
 Usage:
   uv run python playground/long_hop/analyze_errors.py --traces path/to/traces.json
   uv run python playground/long_hop/analyze_errors.py  # auto-detects most recent
-  uv run python playground/long_hop/analyze_errors.py --limit 5
 """
 
 import argparse
@@ -48,26 +54,35 @@ from src.llm import compute_cost  # noqa: E402
 load_dotenv(PROJECT_ROOT / ".env")
 
 DEFAULT_RESULTS_DIR = SCRIPT_DIR / "results"
-DEFAULT_MODEL = "gpt-4.1-mini"
+DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_WORKERS = 8
 MAX_RETRIES = 3
 MAX_INNER_WORKERS = 8
 
+
 # ---------------------------------------------------------------------------
-# Per-target: Storage check
+# Per-fact: Storage check
 # ---------------------------------------------------------------------------
 
-FACT_STORAGE_SYSTEM = """You are checking whether a specific support message was stored in a memory system.
-The stored version may be paraphrased or compressed, but the same concrete fact must still be identifiable."""
+FACT_STORAGE_SYSTEM = """You are checking whether a specific factual statement (one link in a multi-hop reasoning chain) is preserved in a memory store.
 
-FACT_STORAGE_USER = """TARGET SUPPORT MESSAGE:
+The memory store may have stored the fact verbatim, paraphrased it, OR merged
+several chain-links together into one combined memory. Any of these forms
+counts as STORED — as long as the SPECIFIC link asserted by the target fact
+can still be unambiguously identified from at least one memory entry. If the
+link's two specific entities and the relation between them are recoverable,
+mark fact_in_store=true."""
+
+FACT_STORAGE_USER = """TARGET FACT (one link of a reasoning chain):
 {target_message}
 
-ALL_MEMORIES (complete memory store):
+ALL_MEMORIES (complete memory store, possibly with merged entries):
 {all_memories_formatted}
 
-Is this target support message present in ALL_MEMORIES, even if paraphrased or lightly compressed?
-Count it as present only if the same concrete fact can still be clearly identified."""
+Is the target fact present in ALL_MEMORIES — verbatim, paraphrased, or as part
+of a merged memory entry that still preserves the specific link between the
+target fact's two entities? Mark fact_in_store=true only if the precise
+relationship between the two specific entities is unambiguously recoverable."""
 
 FACT_STORAGE_SCHEMA = {
     "type": "json_schema",
@@ -87,32 +102,38 @@ FACT_STORAGE_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Per-target: Summary check
+# Per-fact: Summary check
 # ---------------------------------------------------------------------------
 
-FACT_SUMMARY_SYSTEM = """You are assessing the quality of a stored support message.
+FACT_SUMMARY_SYSTEM = """You are assessing the quality of a stored chain-link.
 
-The target has already been confirmed to exist in the memory store. Your job is to
-evaluate whether the stored version faithfully preserves the specific fact in a way
-that would support correct downstream reasoning.
+The link has already been confirmed to exist somewhere in the memory store
+(possibly inside a merged memory entry). Your job is to evaluate whether the
+stored version faithfully preserves the specific link in a way that would
+support correct downstream chain reasoning.
 
 A stored version has a SUMMARY ERROR if ANY of the following apply:
-- The fact was overgeneralized or merged with others, losing its distinct identity
-- The fact was corrupted or replaced with something different
-- Critical identifying details (time, place, names, numbers, relationships) were lost
-  such that the model could not specifically cite this fact when answering a question
+- The link's two entities were collapsed/renamed/swapped, breaking identity.
+- The relation between them was corrupted, weakened, or replaced.
+- The link was over-merged with unrelated facts so that the specific link can
+  no longer be cleanly extracted (e.g. the entities are listed but not in a
+  way that preserves which-relates-to-which).
+- A critical detail (e.g. direction of the relation) was lost.
 
-A stored version is FAITHFUL if the same concrete fact remains clearly identifiable
-from the stored memory."""
+A stored version is FAITHFUL if both entities of the link are clearly named in
+some memory entry and the specific relation between them is unambiguous —
+EVEN IF the memory entry also contains other chain-links from the same chain
+(merging is allowed when each individual link is still recoverable)."""
 
-FACT_SUMMARY_USER = """TARGET SUPPORT MESSAGE:
+FACT_SUMMARY_USER = """TARGET FACT (one link of a reasoning chain):
 {target_message}
 
-ALL_MEMORIES (the target IS confirmed present somewhere in here):
+ALL_MEMORIES (the link IS confirmed present somewhere in here, possibly merged):
 {all_memories_formatted}
 
-Find the memory entry for this target and assess whether the stored version faithfully
-preserves the specific fact, or whether it has a summary error."""
+Find the memory entry (or entries) that cover this link and assess whether the
+stored version faithfully preserves the specific relation between the two
+entities, or whether it has a summary error."""
 
 FACT_SUMMARY_SCHEMA = {
     "type": "json_schema",
@@ -132,23 +153,29 @@ FACT_SUMMARY_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Per-target: Retrieval check
+# Per-fact: Retrieval check
 # ---------------------------------------------------------------------------
 
-FACT_RETRIEVAL_SYSTEM = """You are checking whether a specific support message was included in the
-memories retrieved and shown to an AI model when it answered a question."""
+FACT_RETRIEVAL_SYSTEM = """You are checking whether a specific chain-link was included in the memories
+retrieved and shown to an AI model when it answered a multi-hop question.
 
-FACT_RETRIEVAL_USER = """TARGET SUPPORT MESSAGE:
+The retrieved memories may include verbatim, paraphrased, or merged versions.
+A merged memory that still contains the link's specific relation counts as
+"retrieved"."""
+
+FACT_RETRIEVAL_USER = """TARGET FACT (one link of a reasoning chain):
 {target_message}
 
-ORIGINAL QUESTION (used to search the memory store):
+ORIGINAL QUESTION (used to query the memory store):
 {query}
 
-RETRIEVED_MEMORIES (shown to the model):
+RETRIEVED_MEMORIES (shown to the model when it answered):
 {retrieved_memories}
 
-Was this target support message included in RETRIEVED_MEMORIES, even if paraphrased?
-Count it as retrieved only if the same concrete fact can be clearly identified."""
+Was the target fact's specific link included in RETRIEVED_MEMORIES, even if
+paraphrased or merged with other chain-links? Mark fact_in_retrieved=true only
+if the precise relationship between the link's two entities is unambiguously
+recoverable from the retrieved memories."""
 
 FACT_RETRIEVAL_SCHEMA = {
     "type": "json_schema",
@@ -168,29 +195,32 @@ FACT_RETRIEVAL_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Question-level: Invocation check (only when all targets are "correct")
+# Question-level: Invocation check (only if every fact reached "correct")
 # ---------------------------------------------------------------------------
 
-INVOCATION_SYSTEM = """You are checking whether an AI model correctly used the retrieved support
-messages to answer a multi-hop question.
+INVOCATION_SYSTEM = """You are checking whether an AI model correctly chained a sequence of retrieved
+chain-links to answer a multi-hop reasoning question.
 
-All needed support messages were present in the retrieved memories. The model should have
-combined them to produce the ground-truth answer."""
+All the needed chain-links were present in the retrieved memories. The model
+should have followed the chain end-to-end (head -> intermediate -> ... ->
+terminal) and produced the terminal entity as its answer."""
 
 INVOCATION_USER = """QUESTION:
 {question}
 
-EXPECTED SUPPORT MESSAGES (all were retrieved):
+CHAIN OF FACTS (every fact was retrieved):
 {expected_support_messages}
 
-GROUND TRUTH ANSWER:
+GROUND TRUTH ANSWER (the terminal entity of the chain):
 {ground_truth_answer}
 
 MODEL RESPONSE:
 {llm_response}
 
-Did the model correctly combine the retrieved support messages to produce the ground-truth
-answer? Synonyms, paraphrases, and equivalent multiple-choice selections count."""
+Did the model correctly chain the retrieved facts to produce the ground-truth
+terminal entity? Synonyms, paraphrases, and trivially equivalent strings count.
+A response that names the terminal entity together with extra commentary still
+counts as correct, as long as the answer it commits to is the right entity."""
 
 INVOCATION_SCHEMA = {
     "type": "json_schema",
@@ -209,6 +239,7 @@ INVOCATION_SCHEMA = {
     },
 }
 
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -218,7 +249,6 @@ ERROR_TYPE_PRIORITY = ["not_stored", "summary_error", "not_retrieved"]
 
 
 def collapse_error_type(per_fact_results: list, correctly_invoked) -> str:
-    """Return the single worst error type for a trace, by priority order."""
     categories = {f.get("category") for f in per_fact_results}
     for p in ERROR_TYPE_PRIORITY:
         if p in categories:
@@ -270,15 +300,11 @@ def extract_graded_traces(data: dict) -> List[dict]:
         trace = traces[0]
         graded.append({
             "example_id": row["example_id"],
-            "question_type": row["question_type"],
-            "domain": row["domain"],
-            "trajectory_id": row["trajectory_id"],
-            "support_set_size": row["support_set_size"],
+            "hop_count": row.get("hop_count"),
+            "facts": row["facts"],
+            "answer_chain": row.get("answer_chain", []),
             "ground_truth_answer": row["ground_truth_answer"],
-            "ground_truth_choice": row.get("ground_truth_choice", ""),
-            "choices": row.get("choices", {}),
-            "target_step_ids": row["target_step_ids"],
-            "target_messages": row["target_messages"],
+            "support_set_size": len(row["facts"]),
             "question": trace["query"],
             "retrieved_memories": trace["retrieved_memories"],
             "llm_response": trace["response"],
@@ -303,7 +329,6 @@ def _call(
     user: str,
     schema: dict,
 ) -> Tuple[dict, int, int]:
-    """Make one structured judge call with retries. Returns (data, in_tok, out_tok)."""
     last_error: Optional[Exception] = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -337,15 +362,15 @@ def analyze_trace(
     trace: dict,
     all_memories: list,
 ) -> Tuple[dict, int, int]:
-    """Classify each target message through a 3-stage pipeline, then run invocation check
-    if all targets reach 'correct'.
+    """Classify each chain-link through a 3-stage pipeline, then run an
+    invocation check if all links reach 'correct'.
 
-    Per-target categories: not_stored | summary_error | not_retrieved | correct
-    Question-level result: correct | incorrect (+ reasoning_error flag if all targets correct)
+    Per-fact categories: not_stored | summary_error | not_retrieved | correct
+    Question-level result: correct | incorrect (+ reasoning_error if all facts correct)
 
-    Returns (result_dict, total_input_tokens, total_output_tokens). Never raises.
+    Never raises. Returns (result_dict, total_input_tokens, total_output_tokens).
     """
-    target_messages = trace.get("target_messages") or []
+    target_messages = trace.get("facts") or []
     N = len(target_messages)
 
     result = {k: v for k, v in trace.items() if k != "formatted_prompt"}
@@ -365,6 +390,7 @@ def analyze_trace(
     fact_results = [
         {
             "target_message": target_messages[i],
+            "fact_index": i,
             "category": None,
             "fact_in_store": None,
             "storage_reasoning": None,
@@ -377,7 +403,7 @@ def analyze_trace(
     ]
 
     try:
-        # ── Stage 1: Storage check — all N targets in parallel ───────────────
+        # ── Stage 1: Storage check ───────────────────────────────────────────
         if N:
             workers = min(N, MAX_INNER_WORKERS)
             with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -403,7 +429,7 @@ def analyze_trace(
                     if not data["fact_in_store"]:
                         fact_results[i]["category"] = "not_stored"
 
-        # ── Stage 2: Summary check — stored targets in parallel ──────────────
+        # ── Stage 2: Summary check (only stored facts) ───────────────────────
         stored_idx = [i for i in range(N) if fact_results[i]["fact_in_store"]]
         if stored_idx:
             with ThreadPoolExecutor(max_workers=min(len(stored_idx), MAX_INNER_WORKERS)) as pool:
@@ -429,7 +455,7 @@ def analyze_trace(
                     if not data["summary_passed"]:
                         fact_results[i]["category"] = "summary_error"
 
-        # ── Stage 3: Retrieval check — summary-passing targets in parallel ───
+        # ── Stage 3: Retrieval check (only summary-passing facts) ────────────
         quality_idx = [i for i in stored_idx if fact_results[i]["summary_passed"]]
         if quality_idx:
             with ThreadPoolExecutor(max_workers=min(len(quality_idx), MAX_INNER_WORKERS)) as pool:
@@ -457,7 +483,7 @@ def analyze_trace(
 
         result["per_fact_results"] = fact_results
 
-        # ── Invocation check — only if every target reached "correct" ────────
+        # ── Invocation check ─────────────────────────────────────────────────
         all_correct = N > 0 and all(fr["category"] == "correct" for fr in fact_results)
         if all_correct:
             invocation_data, in_tok, out_tok = _call(
@@ -516,9 +542,9 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
     )
 
     print("\n" + "=" * 70)
-    print("LONG-HOP ANALYSIS SUMMARY")
+    print("LONG-HOP CHAIN ANALYSIS SUMMARY")
     print("=" * 70)
-    print(f"Total traces:         {total}")
+    print(f"Total chains:         {total}")
     if total:
         print(f"Correct:              {correct}  ({correct/total:.1%})")
         print(f"Incorrect:            {incorrect}  ({incorrect/total:.1%})")
@@ -545,7 +571,7 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
         if total:
             print(f"  of which reasoning_error: {reasoning_errors}  ({reasoning_errors/total:.1%})")
 
-    # ── Per-target-message category distribution (across all targets) ────────
+    # ── Per-fact pipeline distribution ──────────────────────────────────────
     agg: Dict[str, int] = {c: 0 for c in FACT_CATEGORIES}
     total_facts = 0
     for r in results:
@@ -555,7 +581,7 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
             total_facts += n
 
     if total_facts:
-        print(f"\nPer-target-message pipeline distribution (across all {total_facts} targets)")
+        print(f"\nPer-fact pipeline distribution (across all {total_facts} facts)")
         print(f"{'Category':<18} {'Count':>7} {'Fraction':>10}")
         print("-" * 38)
         for cat in FACT_CATEGORIES:
@@ -564,28 +590,28 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
         print("-" * 38)
         print(f"{'TOTAL':<18} {total_facts:>7}")
 
-    # ── Per-target distribution by support_set_size ──────────────────────────
-    by_size: Dict[int, Dict] = {}
+    # ── Per-fact distribution by hop_count ─────────────────────────────────
+    by_hop: Dict[int, Dict] = {}
     for r in results:
         pfr = r.get("per_fact_results", [])
-        n = int(r.get("support_set_size") or len(pfr))
-        if n not in by_size:
-            by_size[n] = {c: 0 for c in FACT_CATEGORIES}
-            by_size[n]["_total_facts"] = 0
-            by_size[n]["_traces"] = 0
-        by_size[n]["_traces"] += 1
+        n = int(r.get("hop_count") or len(pfr))
+        if n not in by_hop:
+            by_hop[n] = {c: 0 for c in FACT_CATEGORIES}
+            by_hop[n]["_total_facts"] = 0
+            by_hop[n]["_traces"] = 0
+        by_hop[n]["_traces"] += 1
         counts = _fact_category_counts(pfr)
         for cat, cnt in counts.items():
-            by_size[n][cat] += cnt
-            by_size[n]["_total_facts"] += cnt
+            by_hop[n][cat] += cnt
+            by_hop[n]["_total_facts"] += cnt
 
-    if by_size:
-        print("\nPer-target-message distribution by support_set_size:")
-        header = f"{'N':>3}  {'not_stored':>12} {'summary_err':>12} {'not_retrv':>11} {'correct':>9}  {'traces':>7}"
+    if by_hop:
+        print("\nPer-fact distribution by hop_count:")
+        header = f"{'hop':>3}  {'not_stored':>12} {'summary_err':>12} {'not_retrv':>11} {'correct':>9}  {'chains':>7}"
         print(header)
         print("-" * len(header))
-        for n in sorted(by_size):
-            d = by_size[n]
+        for n in sorted(by_hop):
+            d = by_hop[n]
             tf = d["_total_facts"] or 1
             print(
                 f"{n:>3}"
@@ -597,25 +623,25 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
             )
         print("-" * len(header))
 
-    # ── Per-question accuracy by question_type ────────────────────────────────
-    by_qt: Dict[str, Dict[str, int]] = {}
+    # ── Accuracy by hop_count ──────────────────────────────────────────────
+    by_hop_acc: Dict[int, Dict[str, int]] = {}
     for r in results:
-        qt = r.get("question_type", "unknown")
-        if qt not in by_qt:
-            by_qt[qt] = {"total": 0, "correct": 0}
-        by_qt[qt]["total"] += 1
+        h = int(r.get("hop_count") or 0)
+        if h not in by_hop_acc:
+            by_hop_acc[h] = {"total": 0, "correct": 0}
+        by_hop_acc[h]["total"] += 1
         if r.get("judge_result") == "correct":
-            by_qt[qt]["correct"] += 1
+            by_hop_acc[h]["correct"] += 1
 
-    if by_qt:
-        print("\nAccuracy by question_type:")
-        header = f"{'question_type':<20} {'correct':>8} {'total':>6} {'acc':>7}"
+    if by_hop_acc:
+        print("\nAccuracy by hop_count:")
+        header = f"{'hop':<6} {'correct':>8} {'total':>6} {'acc':>7}"
         print(header)
         print("-" * len(header))
-        for qt in sorted(by_qt):
-            d = by_qt[qt]
+        for h in sorted(by_hop_acc):
+            d = by_hop_acc[h]
             acc = d["correct"] / d["total"] if d["total"] else 0
-            print(f"{qt:<20} {d['correct']:>8} {d['total']:>6} {acc:>6.1%}")
+            print(f"{h:<6} {d['correct']:>8} {d['total']:>6} {acc:>6.1%}")
         print("-" * len(header))
 
     print(f"\n{'Judge model:':<26} {judge_model}")
@@ -633,10 +659,10 @@ def save_outputs(results: list, output_dir: Path, ts: str) -> Tuple[Path, Path]:
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     fieldnames = [
-        "example_id", "question_type", "domain", "trajectory_id", "support_set_size",
+        "example_id", "hop_count", "support_set_size",
         "conversation_id", "judge_result", "error_type", "correctly_invoked",
-        "ground_truth_answer", "ground_truth_choice", "question",
-        "n_targets",
+        "ground_truth_answer", "question",
+        "n_facts",
         "n_not_stored", "n_summary_error", "n_not_retrieved", "n_correct",
         "frac_not_stored", "frac_summary_error", "frac_not_retrieved", "frac_correct",
         "invocation_reasoning",
@@ -651,7 +677,7 @@ def save_outputs(results: list, output_dir: Path, ts: str) -> Tuple[Path, Path]:
             counts = _fact_category_counts(pfr)
             denom = n or 1
             row = {k: r.get(k, "") for k in fieldnames}
-            row["n_targets"] = n
+            row["n_facts"] = n
             row["n_not_stored"] = counts["not_stored"]
             row["n_summary_error"] = counts["summary_error"]
             row["n_not_retrieved"] = counts["not_retrieved"]
@@ -672,7 +698,7 @@ def save_outputs(results: list, output_dir: Path, ts: str) -> Tuple[Path, Path]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Grade and classify errors in long-hop (MemDaily) traces."
+        description="Grade and classify errors in long-hop chain traces."
     )
     parser.add_argument(
         "--traces",
