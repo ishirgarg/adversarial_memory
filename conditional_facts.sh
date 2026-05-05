@@ -262,7 +262,7 @@ if [ "$DATASET_EXPLICIT" = false ]; then
     if [ "$USE_HARD" = true ]; then
         DATASET="datasets/conditional_facts/hard/conditional_facts_dataset.csv"
     else
-        DATASET="datasets/conditional_facts/conditional_facts_dataset.csv"
+        DATASET="datasets/conditional_facts/easy/conditional_facts_dataset.csv"
     fi
 fi
 
