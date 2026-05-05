@@ -83,6 +83,22 @@ def _parse_csv_arg(raw: str) -> List[str]:
 
 _MAX_FACT_COLS = 4
 _MAX_CHAIN_COLS = 5
+_CHOICE_LETTERS = ["A", "B", "C", "D", "E"]
+
+
+def _wrap_mcq_for_eval(question_with_choices: str) -> str:
+    """The CSV's `graded_question` already includes the labelled A–E options.
+    Wrap it with a strict JSON-response instruction so the grader can parse
+    the chosen letter deterministically."""
+    return (
+        f"{question_with_choices}\n\n"
+        f"Choose exactly one option above. The correct answer is uniquely\n"
+        f"determined by chaining the relevant remembered facts together; the\n"
+        f"other four options cannot be inferred from those facts.\n\n"
+        f"Respond with a single JSON object on its own line and nothing else,\n"
+        f"using this exact schema:\n"
+        f"  {{\"selected_choice\": \"<one of A, B, C, D, E>\"}}"
+    )
 
 
 def load_dataset(
@@ -117,13 +133,33 @@ def load_dataset(
                 for i in range(1, _MAX_CHAIN_COLS + 1)
                 if r.get(f"chain_{i}", "").strip()
             ]
+            choices: Dict[str, str] = {}
+            for letter in _CHOICE_LETTERS:
+                col = f"choice_{letter.lower()}"
+                if col not in r:
+                    raise ValueError(
+                        f"Dataset row {r.get('id')} is missing column {col}; "
+                        "regenerate the dataset with the MCQ-aware generator."
+                    )
+                choices[letter] = r[col].strip()
+            correct_choice = r.get("correct_choice", "").strip().upper()
+            if correct_choice not in _CHOICE_LETTERS:
+                raise ValueError(
+                    f"Dataset row {r.get('id')} has invalid correct_choice "
+                    f"{correct_choice!r}; expected one of {_CHOICE_LETTERS}."
+                )
+            question_with_choices = r["graded_question"].strip()
+            mcq_question = _wrap_mcq_for_eval(question_with_choices)
             rows.append({
                 "example_id": r["id"],
                 "hop_count": hop,
                 "facts": facts,
                 "answer_chain": chain,
-                "graded_question": r["graded_question"].strip(),
+                "graded_question_stem": question_with_choices,
+                "graded_question": mcq_question,
                 "ground_truth_answer": r["ground_truth_answer"].strip(),
+                "choices": choices,
+                "correct_choice": correct_choice,
             })
 
     rng = random.Random(seed)
@@ -382,7 +418,10 @@ def main() -> None:
             "answer_chain": row["answer_chain"],
             "ground_truth_answer": row["ground_truth_answer"],
             "support_set_size": len(row["facts"]),
+            "question_stem": row["graded_question_stem"],
             "question": trace["query"],
+            "choices": row["choices"],
+            "correct_choice": row["correct_choice"],
             "retrieved_memories": trace["retrieved_memories"],
             "llm_response": trace["response"],
             "formatted_prompt": trace["formatted_prompt"],

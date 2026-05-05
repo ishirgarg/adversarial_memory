@@ -8,28 +8,36 @@ introduces exactly one new edge (anchor i → anchor i+1):
   K=2:  3 statements, 4 anchors
   K=3:  4 statements, 5 anchors
 
-Anchors can be proper-noun entities OR generic concepts (states, actions,
-objects, preferences, places, attributes). First-person, conditional, causal,
-temporal, and preference sentences are encouraged. Example general-reasoning
-chain:
+Every fact must be SUBJECTIVE — a first-person opinion / preference / routine,
+or a claim about a specific named person (their habits, opinions, moods).
+Facts must NEVER be encyclopedic world claims that could in principle be
+looked up (no made-up companies, towns, rivers, books, or geographic
+relations). First-person, conditional, causal, temporal, and preference
+sentences are encouraged. Example general-reasoning chain:
   "I eat apples when I'm bored."
   "When I'm bored I go to sleep."
   "When I sleep I have a dream."
 
+Do NOT use this example in your generation.
 The graded question references only A and asks for the terminal anchor, so the
 question can be answered ONLY by chaining all K+1 statements end-to-end.
 
 Pipeline:
-  1) Generate chains in batches with gpt-5-mini, accumulating one-line
-     "prior chain summaries" so the model picks novel narratives.
+  1) Generate chains (without answer choices) in batches with gpt-5,
+     accumulating one-line "prior chain summaries" so the model picks novel
+     narratives.
   2) Validate each chain locally: shape, anchor uniqueness within the chain,
      all anchors appear in their respective facts.
-  3) Cross-chain conflict / similarity check via gpt-5-mini to drop chains
-     whose narrative paraphrases or contradicts another chain.
+  3) Cross-chain conflict / similarity check via gpt-5 to drop chains whose
+     narrative paraphrases or contradicts another chain.
   4) MinHash LSH deduplication at threshold=0.7 across every fact in the
      dataset. If any fact in a chain duplicates a fact already kept, the
      entire chain is dropped.
-  5) Truncate to exactly --target-per-hop chains per hop count and write:
+  5) For each surviving chain, generate 4 distractor options with gpt-5,
+     constrained to be realistic (no absurd / surreal options) and
+     orthogonal to every fact. Drop chains whose distractor generation fails
+     validation after retries.
+  6) Truncate to exactly --target-per-hop chains per hop count and write:
        datasets/long_hop/long_hop_chains.csv       (one row per chain)
        datasets/long_hop/long_hop_chains_meta.json (generation config)
 """
@@ -41,7 +49,9 @@ import os
 import random
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -56,7 +66,7 @@ load_dotenv(PROJECT_ROOT / ".env")
 
 from dataset_utils.dedup import deduplicate  # noqa: E402
 
-MODEL_NAME = "gpt-5-mini"
+MODEL_NAME = "gpt-5"
 MAX_RETRIES = 4
 RETRY_BACKOFF_S = 1.0
 
@@ -68,12 +78,17 @@ DEFAULT_DEDUP_THRESHOLD = 0.7
 
 MAX_FACTS_PER_CHAIN = 4   # K=3 → 4 facts
 MAX_CHAIN_ANCHORS = 5     # K=3 → 5 anchors
+NUM_CHOICES = 5           # 1 correct + 4 distractors
+CHOICE_LETTERS = ["A", "B", "C", "D", "E"]
+NUM_DISTRACTORS = NUM_CHOICES - 1
 
 CSV_COLUMNS = (
     ["id", "hop_count"]
     + [f"fact_{i}" for i in range(1, MAX_FACTS_PER_CHAIN + 1)]
     + [f"chain_{i}" for i in range(1, MAX_CHAIN_ANCHORS + 1)]
     + ["graded_question", "ground_truth_answer"]
+    + [f"choice_{letter.lower()}" for letter in CHOICE_LETTERS]
+    + ["correct_choice"]
 )
 
 # ---------------------------------------------------------------------------
@@ -82,7 +97,7 @@ CSV_COLUMNS = (
 
 
 def _chat_json(client: OpenAI, system: str, user: str) -> Tuple[Any, int, int]:
-    """Call gpt-5-mini with JSON object response_format and basic retry."""
+    """Call the OpenAI chat model with JSON object response_format and basic retry."""
     last_err: Optional[Exception] = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
@@ -104,7 +119,7 @@ def _chat_json(client: OpenAI, system: str, user: str) -> Tuple[Any, int, int]:
             last_err = exc
             if attempt < MAX_RETRIES:
                 time.sleep(RETRY_BACKOFF_S * attempt)
-    raise RuntimeError(f"gpt-5-mini call failed after {MAX_RETRIES} attempts: {last_err}")
+    raise RuntimeError(f"{MODEL_NAME} call failed after {MAX_RETRIES} attempts: {last_err}")
 
 
 # ---------------------------------------------------------------------------
@@ -115,48 +130,89 @@ GEN_SYSTEM = """You are constructing a benchmark of multi-hop reasoning chains.
 
 Each chain consists of K+1 short factual statements that strictly link K+2
 distinct anchors A -> B -> C -> ... in a transitive chain. Statement i must
-relate anchor i to anchor i+1 (and no other anchors). The chain must support a
-single multi-hop question: starting from A, answering the question requires
-chaining through every statement to reach the terminal anchor.
+relate anchor i to anchor i+1 (no other anchors, except the HEAD subject —
+see rule 2 — which may recur as background). The chain must support a single
+multi-hop question: starting from A, answering the question requires chaining
+through every statement to reach the terminal anchor.
 
 Hard rules — every chain must satisfy ALL of these:
 1. EXACTLY K+1 statements per chain. Each statement is a single declarative
    English sentence, max ~16 words, no commas-separated multi-claims.
-2. Statement i mentions ONLY anchor i and anchor i+1, plus an explicit relation
-   word — a verb ("founded", "is owned by"), a conditional ("when", "whenever",
-   "if"), a causal ("because", "leads to", "makes me"), a temporal ("after",
-   "before"), or a preference ("I do X when Y"). It must not mention any other
-   anchor from the chain.
+2. Statement i mentions anchor i and anchor i+1, plus an explicit relation
+   word — a verb ("loves", "hates", "always picks"), a conditional ("when",
+   "whenever", "if"), a causal ("because", "leads to", "makes me"), a temporal
+   ("after", "before"), or a preference ("I do X when Y"). MIDDLE and TERMINAL
+   anchors (anchors 2 .. K+2) must appear ONLY in the two facts that border
+   them — they must not be named in any other fact.
+   The HEAD subject is special and may recur as background in every fact:
+     - First-person voice: "I/me/my" is the implicit speaker. The first-person
+       speaker is NEVER literally listed in answer_chain — anchor 1 is instead
+       a state/action/object the speaker relates to ("eat apples", "bored").
+     - Named-person voice: the chain's subject is a single named person
+       ("Diego", "Marisol Vega"). That person IS anchor 1, and the same name
+       must appear in every subsequent fact as background. Pronouns
+       ("he/she/his/her") are FINE within a single fact when the proper
+       noun also appears in that same fact (see rule 2b).
+   Pick ONE voice per chain (first-person OR one named person) and stay
+   consistent.
 2b. EVERY STATEMENT MUST BE SELF-CONTAINED. A reader will encounter each
-   statement in isolation, with no access to the other statements in the chain,
-   so each statement must be fully interpretable on its own. Concretely:
-     - Do NOT use third-person pronouns ("he", "she", "it", "they", "him",
-       "her", "them", "his", "hers", "their", "theirs", "its") to refer back
-       to an anchor that only appears in a different statement. If you need to
-       refer to a proper-noun anchor again, repeat its name.
-     - Do NOT use referential phrases like "the company", "that town", "this
-       book", "the same person" that depend on another statement to resolve.
-     - Do NOT use pronouns inside a statement to refer to an anchor that does
-       not appear literally in that same statement.
-     - First-person ("I", "me", "my", "myself") IS allowed everywhere — the
-       speaker is implicit and shared across the dataset.
-     - Within one statement, a pronoun whose referent appears literally in
-       that same statement is fine ("Watering succulents keeps them healthy"
-       is OK because "succulents" appears in the same sentence).
-3. K+2 anchors total per chain. Anchors can be ANY of:
-     - Proper-noun entities — invented names like "Yermil Vasque",
-       "Korolan Foundry", "the Tirvana Basin".
-     - Generic concepts — states ("bored", "tired"), actions ("eat apples",
-       "go for a run"), objects ("a dream", "popcorn"), preferences, places,
-       attributes, moods, routines.
-   First-person ("I ...") sentences are encouraged. Mix the two styles freely.
+   statement in isolation, with no access to the other statements in the
+   chain, so each statement must be fully interpretable on its own.
+
+   Pronouns INSIDE a statement are FINE — write natural English. The only
+   rule is that every reference must resolve from the statement alone:
+     - First-person ("I", "me", "my", "myself") is always fine — the speaker
+       is implicit and shared across the dataset.
+     - Third-person pronouns ("he", "she", "it", "they", "them", "his",
+       "her", "their", "its", etc.) are fine when their antecedent appears
+       LITERALLY in the SAME statement. Examples that are GOOD:
+         "Diego loves Korean food because he finds it spicy."   (he ↔ Diego)
+         "Marisol picks pop music whenever she is alone."       (she ↔ Marisol)
+         "Watering succulents keeps them healthy."              (them ↔ succulents)
+
+   What's forbidden is leaving a statement DEPENDENT on a different statement
+   to resolve a reference. Do NOT:
+     - Use a pronoun whose only possible antecedent appears in a DIFFERENT
+       statement. If the proper noun isn't in this statement, repeat it.
+     - Use referential phrases like "the company", "that town", "this book",
+       "the same person" that depend on another statement to resolve.
+3. K+2 anchors total per chain. Anchors should be SUBJECTIVE / PERSONAL content
+   that cannot be looked up in an encyclopedia. Use anchors like:
+     - States, moods, feelings ("bored", "anxious", "calm").
+     - Actions, habits, routines ("eat apples", "skip lunch", "go for a run").
+     - Preferences and opinions ("loves Korean food", "thinks pop music is
+       overrated").
+     - Concrete personal objects ("my bookshelf", "popcorn", "chamomile tea").
+     - A single specific named person introduced as the chain's head subject
+       ("Diego", "Marisol Vega") — only when that person is anchor 1 and the
+       rest of the chain is about their preferences / habits / moods.
+   Do NOT use impersonal entities (companies, towns, rivers, books,
+   institutions, geographic regions). First-person ("I ...") sentences are
+   encouraged. Mix first-person and named-person styles freely.
+
+3b. Every fact must be SUBJECTIVE: an opinion, preference, mood, routine,
+   habit, or relational claim about a specific person (the speaker or a
+   named person). Facts must NOT be impersonal world claims.
+     GOOD:
+       - "I think Italian food is overrated."           (first-person opinion)
+       - "Diego loves Korean food."                     (fact about a person)
+       - "Marisol always feels nervous before tests."   (personal trait)
+       - "When I'm tired I get grumpy."                 (first-person routine)
+     BAD:
+       - "Drannot House published the novel."           (impersonal fact)
+       - "Yepelmir lies in the province of Korunda."    (geographic claim)
+       - "Strophien Atelier operates from Treskellin."  (impersonal corporate)
 4. Within a single chain, all K+2 anchors must be distinct (case-insensitive).
 5. Vary the relation patterns across the K+1 statements within one chain — do
    not reuse the same conditional or verb template back-to-back.
-6. The graded question must reference ONLY anchor 1 (the head) and ask about
-   the terminal anchor (the last in the chain), without ever naming any
-   intermediate anchor. The question should be a single natural English
-   sentence and have a unique correct answer given the K+1 statements.
+6. The graded question must reference anchor 1 (the head) at least once by
+   name and ask about the terminal anchor (the last in the chain), without
+   ever naming any intermediate anchor. The question should read as a single
+   natural English sentence and have a unique correct answer given the K+1
+   statements. Natural pronouns are encouraged when they aid flow — e.g.,
+   "What does Diego do when he is bored?" or "When I'm dehydrated, what
+   mood do I end up in?" — provided every pronoun's antecedent is clear
+   from the question itself.
 7. ground_truth_answer must equal the terminal anchor exactly (or its shortest
    natural form — e.g. drop a leading "the" only if the canonical phrase has
    no article).
@@ -165,26 +221,29 @@ Hard rules — every chain must satisfy ALL of these:
    "sleep" or "bored" may repeat across chains, but a chain that paraphrases
    another chain's storyline must not be produced.
 
+Distractor options are produced in a separate downstream step — DO NOT include
+any distractors / answer choices in your output here.
+
 Output JSON only — no commentary."""
 
 
 def _examples_block(hop_count: int) -> str:
     """Return four in-context examples for the given hop count.
 
-    Mix: 1 entity-style example + 3 general-reasoning examples (causal /
-    conditional / temporal / preference, often first-person).
+    Mix: 1 named-person opinion chain + 3 first-person chains (causal /
+    conditional / temporal / preference). All examples are subjective.
     """
     if hop_count == 1:  # K=1 → 2 facts, 3 anchors
         examples = [
             {
-                "tag": "entity",
+                "tag": "opinion about a named person",
                 "facts": [
-                    "Marenza Velloux founded Strophien Atelier.",
-                    "Strophien Atelier operates from the town of Treskellin.",
+                    "Diego loves Korean food.",
+                    "Korean food always leaves Diego thirsty.",
                 ],
-                "answer_chain": ["Marenza Velloux", "Strophien Atelier", "Treskellin"],
-                "graded_question": "In what town does the atelier founded by Marenza Velloux operate?",
-                "ground_truth_answer": "Treskellin",
+                "answer_chain": ["Diego", "Korean food", "thirsty"],
+                "graded_question": "What physical feeling does Diego's favorite cuisine eventually cause?",
+                "ground_truth_answer": "thirsty",
             },
             {
                 "tag": "general (causal, first-person)",
@@ -220,15 +279,15 @@ def _examples_block(hop_count: int) -> str:
     elif hop_count == 2:  # K=2 → 3 facts, 4 anchors
         examples = [
             {
-                "tag": "entity",
+                "tag": "opinion about a named person",
                 "facts": [
-                    "Quenn Idriguay is a senior brewer at Hollomere Cask.",
-                    "Hollomere Cask operates from the town of Treskellin.",
-                    "Treskellin sits along the river Vellimar.",
+                    "Marisol thinks pop music is overrated.",
+                    "Whenever pop music is on Marisol leaves the room.",
+                    "When Marisol leaves the room Marisol ends up in a sour mood.",
                 ],
-                "answer_chain": ["Quenn Idriguay", "Hollomere Cask", "Treskellin", "river Vellimar"],
-                "graded_question": "Along which river lies the town containing the brewery where Quenn Idriguay works?",
-                "ground_truth_answer": "river Vellimar",
+                "answer_chain": ["Marisol", "pop music", "leaves the room", "sour mood"],
+                "graded_question": "What mood does Marisol end up in because of the music genre Marisol dislikes?",
+                "ground_truth_answer": "sour mood",
             },
             {
                 "tag": "general (causal, first-person)",
@@ -267,22 +326,22 @@ def _examples_block(hop_count: int) -> str:
     elif hop_count == 3:  # K=3 → 4 facts, 5 anchors
         examples = [
             {
-                "tag": "entity",
+                "tag": "opinion about a named person",
                 "facts": [
-                    "Vespan Khorrid wrote the novel Pale Equinox of Mirru.",
-                    "Pale Equinox of Mirru was published by Drannot House.",
-                    "Drannot House is headquartered in the city of Yepelmir.",
-                    "Yepelmir lies in the province of Korunda.",
+                    "Lina hates math classes.",
+                    "Math classes always leave Lina frustrated.",
+                    "When Lina is frustrated Lina makes chamomile tea.",
+                    "Chamomile tea always makes Lina feel calmer.",
                 ],
                 "answer_chain": [
-                    "Vespan Khorrid",
-                    "Pale Equinox of Mirru",
-                    "Drannot House",
-                    "Yepelmir",
-                    "Korunda",
+                    "Lina",
+                    "math classes",
+                    "frustrated",
+                    "chamomile tea",
+                    "calmer",
                 ],
-                "graded_question": "In what province is the publisher of the novel Vespan Khorrid wrote ultimately based?",
-                "ground_truth_answer": "Korunda",
+                "graded_question": "What feeling does Lina end up with because of the school subject Lina hates?",
+                "ground_truth_answer": "calmer",
             },
             {
                 "tag": "general (causal, first-person)",
@@ -369,23 +428,36 @@ Each chain must follow ALL hard rules from the system prompt. To recap for K = {
 - Exactly {n_facts} statements.
 - Exactly {n_anchors} distinct anchors, listed in answer_chain in chain order
   (head first, terminal last).
-- Statement i links anchor i and anchor i+1 only.
+- DO NOT USE THE EXAMPLES I GIVE YOU IN YOUR CHAINS.
+- Statement i links anchor i and anchor i+1. The HEAD subject (first-person
+  "I" implicit, OR a named person at anchor 1) may also recur as background
+  in every fact. Middle and terminal anchors must each appear ONLY in their
+  two bordering facts.
+- Every fact must be SUBJECTIVE — an opinion / preference / mood / routine /
+  habit, either first-person ("I") or about a single named person
+  ("Diego", "Marisol"). No encyclopedic / entity-relation facts.
 - Every anchor must appear LITERALLY (case-insensitive substring) in the
   fact(s) it belongs to.
 - EVERY STATEMENT MUST BE SELF-CONTAINED — a reader will see each fact in
-  isolation. No third-person pronouns (he/she/it/they/him/her/them/his/her/
-  their/its) referring to anchors from other statements; repeat proper-noun
-  anchors verbatim instead. No referential phrases ("the company", "that
-  town") that depend on another fact to resolve. First-person ("I", "me",
-  "my") is always fine.
+  isolation, so each fact must be interpretable on its own. Pronouns INSIDE
+  a single fact are fine when the antecedent is in the SAME fact ("Diego
+  loves Korean food because he finds it spicy" — "he" ↔ Diego). What's
+  forbidden is using a pronoun whose only antecedent appears in a DIFFERENT
+  fact. No referential phrases ("the company", "that town") that depend on
+  another fact to resolve. First-person ("I", "me", "my") is always fine.
   BAD:  "Lina buys a ticket and travels to the coast." / "Traveling to the
         coast means she visits Seabright."   ← "she" needs fact 1 to resolve.
   GOOD: "Lina buys a ticket and travels to the coast." / "Traveling to the
         coast means Lina visits Seabright."
-- The graded_question references only anchor 1 (the head) and asks about the
-  terminal anchor. The question must be unanswerable from any single statement
-  alone.
+  ALSO GOOD: "Lina buys a ticket because she loves travel."   ← "she" has
+        antecedent "Lina" in the same fact.
+- The graded_question references anchor 1 (the head) at least once by name
+  and asks about the terminal anchor. The question must be unanswerable from
+  any single statement alone. Natural pronouns referring to the head anchor
+  are encouraged when they aid flow.
 - ground_truth_answer is the canonical written form of the terminal anchor.
+- DO NOT include any distractors / answer choices — they are produced in a
+  separate downstream step.
 
 In-context examples (mix of styles — produce a similar mix):
 
@@ -410,10 +482,14 @@ Output schema (JSON object):
 }}
 
 Generate now. Aim for diversity — across the {batch_size} chains, vary the
-sentence patterns (causal / conditional / temporal / preference / entity-
-relation) and the topic domains (food, mood, weather, routine, work, hobbies,
-people↔organizations, books↔authors, places↔regions, etc.). Roughly 1 in 4
-chains may be entity-style; the rest should be general-reasoning."""
+sentence patterns (causal / conditional / temporal / preference / opinion)
+and the topic domains (food, mood, weather, routine, work, hobbies, music,
+travel, study, exercise, etc.). EVERY chain must be subjective: a first-
+person chain (no named subject — implicit "I") OR a chain about a single
+named person ("Diego", "Marisol Vega", "Lina") and that person's
+opinions / habits / moods. Mix the two voices freely across the batch. Do
+NOT produce encyclopedic / entity-relation chains (no companies, towns,
+rivers, books, geographic features)."""
 
 
 # ---------------------------------------------------------------------------
@@ -423,16 +499,6 @@ chains may be entity-style; the rest should be general-reasoning."""
 
 _PUNCT_RE = re.compile(r"[\"'.,!?;:()\[\]]")
 
-# Singular third-person human pronouns. In our chain format every fact is read
-# in isolation, so these must never appear — proper nouns must be repeated
-# verbatim instead. ("it"/"its"/"they"/"them"/"their" are NOT flagged: they
-# legitimately refer to in-fact objects like "succulents" or "popcorn".)
-_BANNED_PRONOUNS = {
-    "he", "him", "his", "himself",
-    "she", "her", "hers", "herself",
-}
-_TOKEN_RE = re.compile(r"\b([a-z']+)\b")
-
 
 def _norm_for_match(s: str) -> str:
     """Lowercase + strip punctuation + collapse whitespace, for substring checks."""
@@ -440,15 +506,6 @@ def _norm_for_match(s: str) -> str:
     s = _PUNCT_RE.sub(" ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
-
-
-def _has_banned_pronoun(fact: str) -> bool:
-    """True if `fact` contains a singular third-person human pronoun.
-
-    Self-containment requires repeating the proper noun instead — a reader
-    who sees this fact in isolation cannot resolve "she"/"he"/etc.
-    """
-    return any(tok in _BANNED_PRONOUNS for tok in _TOKEN_RE.findall(fact.lower()))
 
 
 def _validate_chain(raw: Dict[str, Any], hop_count: int) -> Optional[Dict[str, Any]]:
@@ -483,13 +540,6 @@ def _validate_chain(raw: Dict[str, Any], hop_count: int) -> Optional[Dict[str, A
     norm_chain = [_norm_for_match(e) for e in chain]
     if len(set(norm_chain)) != len(norm_chain):
         return None  # duplicate anchor within the chain
-
-    # Self-containment: each fact must be readable in isolation. Reject any
-    # fact that uses a singular third-person human pronoun — those force the
-    # reader to look up an antecedent in another fact.
-    for f in facts:
-        if _has_banned_pronoun(f):
-            return None
 
     # Each anchor j (0-indexed) must appear in fact j-1 (if j >= 1) and fact j
     # (if j <= n_facts - 1 == hop_count). Substring match on normalized text.
@@ -709,8 +759,216 @@ def conflict_check(
 
 
 # ---------------------------------------------------------------------------
+# Distractor generation (per chain, parallel)
+# ---------------------------------------------------------------------------
+
+DISTRACTOR_GEN_SYSTEM = """You write distractor options for a multi-hop reasoning multiple-choice question.
+
+You receive:
+- A list of FACTS forming a transitive reasoning chain (the graded answer
+  requires chaining ALL facts).
+- The GRADED_QUESTION (references only the head anchor; asks about the
+  terminal anchor).
+- The correct GROUND_TRUTH_ANSWER.
+
+Produce EXACTLY 4 distractor options. Each distractor must satisfy ALL of the
+following rules:
+
+1. SAME-SHAPE PLAUSIBILITY. Match the correct answer in grammatical form,
+   length range, and answer category. If the correct answer is a noun phrase
+   naming a mood, every distractor is a noun phrase naming a mood. If the
+   correct answer is a short verb phrase ("drink water"), every distractor is
+   a short verb phrase of similar length and shape. Pronouns and articles
+   that flow naturally with the question are fine — match the voice the
+   question uses (e.g., if the question is "What does Diego do when he is
+   bored?", distractors phrased as "he reorganizes his closet" or simply
+   "reorganizes the closet" are both acceptable, as long as the distractor
+   reads as a fluent answer to the question).
+
+2. REALISTIC AND ORDINARY. Each distractor must name something a real person
+   could plausibly feel, do, prefer, eat, or experience in everyday life.
+   NO absurd, surreal, slapstick, joke, or comically random options. NO
+   things almost no one actually does (e.g., "duel a swan", "memorize country
+   capitals from memory", "argue with neighbors about constellations"). Pick
+   ordinary moods, habits, hobbies, foods, or activities — the kind of
+   answer a thoughtful peer might genuinely guess.
+
+3. UNAMBIGUOUSLY WRONG. Must not be a paraphrase, synonym, sub-phrase,
+   near-spelling, or otherwise overlapping with the correct answer or with
+   any anchor / relation phrase that appears in any fact.
+
+4. ORTHOGONAL TO EVERY FACT. A reader looking at any single fact in isolation
+   must NOT be able to guess the distractor as a plausible "what comes next"
+   or "natural consequence" via common-sense world knowledge. Avoid
+   distractors that name typical effects, components, properties, or strong
+   associations of any concept mentioned in any fact (e.g., if a fact
+   mentions popcorn, do NOT pick a distractor about thirst, salt, or movies;
+   if a fact mentions a cold shower, do NOT pick a distractor about feeling
+   refreshed or shivery). Pick subject matter unrelated to every fact's
+   topic.
+
+5. DISTINCT. The four distractors must be distinct from each other
+   (case-insensitive) and distinct from the correct answer.
+
+Examples (note: realistic, ordinary, orthogonal):
+
+CHAIN A facts:
+  - "I eat apples when I'm bored."
+  - "When I'm bored I go to sleep."
+  - "When I sleep I have a dream."
+  - "Every dream I have leaves me curious about the future."
+GRADED_QUESTION: "What does eating apples eventually leave me feeling?"
+CORRECT_ANSWER: "curious about the future"
+GOOD distractors (ordinary moods/feelings, orthogonal to apples / sleep / dreams):
+  - "nostalgic about old friendships"
+  - "motivated to clean my apartment"
+  - "indifferent toward upcoming holidays"
+  - "satisfied with my routine"
+
+CHAIN B facts:
+  - "Marisol thinks pop music is overrated."
+  - "Whenever pop music is on Marisol leaves the room."
+  - "When Marisol leaves the room Marisol ends up in a sour mood."
+GRADED_QUESTION: "What mood does Marisol end up in because of the music genre Marisol dislikes?"
+CORRECT_ANSWER: "sour mood"
+GOOD distractors (ordinary moods, no music / departure associations):
+  - "a focused mood"
+  - "a contemplative mood"
+  - "a generous mood"
+  - "a competitive mood"
+
+Output JSON only — no commentary."""
+
+
+def _validate_distractors(
+    distractors: Any, chain: Dict[str, Any]
+) -> Optional[List[str]]:
+    """Structural + non-overlap checks. Return cleaned list or None if invalid."""
+    if not isinstance(distractors, list) or len(distractors) != NUM_DISTRACTORS:
+        return None
+    if not all(isinstance(d, str) and d.strip() for d in distractors):
+        return None
+    cleaned = [d.strip() for d in distractors]
+    norm = [_norm_for_match(d) for d in cleaned]
+    if len(set(norm)) != len(norm):
+        return None
+    gt_norm = _norm_for_match(chain["ground_truth_answer"])
+    for nd in norm:
+        if nd == gt_norm or nd in gt_norm or gt_norm in nd:
+            return None
+    fact_norms = [_norm_for_match(f) for f in chain["facts"]]
+    for nd in norm:
+        if not nd:
+            return None
+        for fn in fact_norms:
+            if nd in fn:
+                return None
+    return cleaned
+
+
+def _distractor_user_prompt(chain: Dict[str, Any]) -> str:
+    facts_block = "\n".join(f"- {f}" for f in chain["facts"])
+    return (
+        f"FACTS:\n{facts_block}\n\n"
+        f"GRADED_QUESTION: {chain['graded_question']}\n\n"
+        f"CORRECT_ANSWER: {chain['ground_truth_answer']}\n\n"
+        "Produce 4 distractor options that satisfy every rule from the system "
+        "message. Output JSON:\n"
+        "{\"incorrect_options\": [\"...\", \"...\", \"...\", \"...\"]}"
+    )
+
+
+def generate_distractors(
+    client: OpenAI,
+    chain: Dict[str, Any],
+    token_counter: Dict[str, int],
+) -> Optional[List[str]]:
+    """Generate 4 valid distractors for a chain. Return None if all retries fail."""
+    user = _distractor_user_prompt(chain)
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            data, in_tok, out_tok = _chat_json(client, DISTRACTOR_GEN_SYSTEM, user)
+        except Exception as exc:
+            print(f"  distractor-gen {chain['id']} attempt {attempt}: API error ({exc!r})")
+            continue
+        token_counter["in"] += in_tok
+        token_counter["out"] += out_tok
+        if not isinstance(data, dict):
+            continue
+        validated = _validate_distractors(data.get("incorrect_options"), chain)
+        if validated is not None:
+            return validated
+        print(
+            f"  distractor-gen {chain['id']} attempt {attempt}: "
+            "validation failed; retrying"
+        )
+    return None
+
+
+def generate_all_distractors(
+    client: OpenAI,
+    chains: List[Dict[str, Any]],
+    parallelism: int,
+    token_counter: Dict[str, int],
+) -> List[Dict[str, Any]]:
+    """Attach `incorrect_options` to each chain in place using up to `parallelism`
+    concurrent OpenAI calls. Drop chains that fail after retries."""
+    if not chains:
+        return []
+    workers = max(1, parallelism)
+    token_lock = threading.Lock()
+
+    def _work(chain: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[List[str]]]:
+        local_tc: Dict[str, int] = {"in": 0, "out": 0}
+        result = generate_distractors(client, chain, local_tc)
+        with token_lock:
+            token_counter["in"] += local_tc["in"]
+            token_counter["out"] += local_tc["out"]
+        return chain, result
+
+    distractor_map: Dict[str, List[str]] = {}
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        for chain, result in ex.map(_work, chains):
+            if result is None:
+                print(f"  distractor-gen drop {chain['id']}: failed after retries")
+                continue
+            distractor_map[chain["id"]] = result
+
+    kept: List[Dict[str, Any]] = []
+    for chain in chains:
+        d = distractor_map.get(chain["id"])
+        if d is None:
+            continue
+        chain["incorrect_options"] = d
+        kept.append(chain)
+    return kept
+
+
+# ---------------------------------------------------------------------------
+# Choice placement
+# ---------------------------------------------------------------------------
+
+
+def assign_choices(chain: Dict[str, Any], rng: random.Random) -> None:
+    """Shuffle the four distractors with the correct answer and record choice
+    columns + correct_choice letter on the chain dict in place."""
+    options = list(chain["incorrect_options"]) + [chain["ground_truth_answer"]]
+    rng.shuffle(options)
+    correct_letter = CHOICE_LETTERS[options.index(chain["ground_truth_answer"])]
+    chain["choices"] = {letter: text for letter, text in zip(CHOICE_LETTERS, options)}
+    chain["correct_choice"] = correct_letter
+
+
+# ---------------------------------------------------------------------------
 # Output writers
 # ---------------------------------------------------------------------------
+
+
+def render_question_with_choices(stem: str, choices: Dict[str, str]) -> str:
+    """Append labelled A–E options to the question stem so the CSV's
+    `graded_question` column is a self-contained multiple-choice prompt."""
+    options_block = "\n".join(f"{letter}. {choices[letter]}" for letter in CHOICE_LETTERS)
+    return f"{stem}\n\nOptions:\n{options_block}"
 
 
 def write_csv(out_path: Path, chains: List[Dict[str, Any]]) -> None:
@@ -734,8 +992,13 @@ def write_csv(out_path: Path, chains: List[Dict[str, Any]]) -> None:
                         f"chain {c['id']} has {len(c['answer_chain'])} anchors (>{MAX_CHAIN_ANCHORS})"
                     )
                 row[f"chain_{i}"] = anc
-            row["graded_question"] = c["graded_question"]
+            row["graded_question"] = render_question_with_choices(
+                c["graded_question"], c["choices"]
+            )
             row["ground_truth_answer"] = c["ground_truth_answer"]
+            for letter in CHOICE_LETTERS:
+                row[f"choice_{letter.lower()}"] = c["choices"][letter]
+            row["correct_choice"] = c["correct_choice"]
             writer.writerow(row)
 
 
@@ -845,7 +1108,7 @@ def main() -> None:
     print(f"\nTotal raw chains generated: {len(all_chains)}")
 
     # ── Cross-chain conflict / similarity check ───────────────────────────────
-    print("\n>>> Running cross-chain conflict / similarity check (gpt-5-mini)...")
+    print(f"\n>>> Running cross-chain conflict / similarity check ({MODEL_NAME})...")
     drop_ids = conflict_check(client, all_chains, args.batch_size, token_counter)
     print(f"   conflict-check dropped {len(drop_ids)} chains.")
     survivors = [c for c in all_chains if c["id"] not in drop_ids]
@@ -875,6 +1138,20 @@ def main() -> None:
     )
     print(f"   survivors after dedup: {len(surviving_chains)}")
 
+    # ── Per-chain distractor generation (parallel) ───────────────────────────
+    print(
+        f"\n>>> Generating distractors per chain ({MODEL_NAME}, "
+        f"up to {args.batch_size} parallel calls)..."
+    )
+    pre_count = len(surviving_chains)
+    surviving_chains = generate_all_distractors(
+        client, surviving_chains, args.batch_size, token_counter
+    )
+    print(
+        f"   distractor-gen produced distractors for "
+        f"{len(surviving_chains)}/{pre_count} chains."
+    )
+
     # ── Truncate to target_per_hop per hop_count ──────────────────────────────
     by_hop: Dict[int, List[Dict[str, Any]]] = {1: [], 2: [], 3: []}
     for c in surviving_chains:
@@ -898,6 +1175,11 @@ def main() -> None:
         counts[c["hop_count"]] += 1
         c["id"] = f"longhop-{c['hop_count']}hop-{counts[c['hop_count']]:03d}"
 
+    # ── Randomize correct-choice placement (A..E) per chain ──────────────────
+    choice_rng = random.Random(args.seed ^ 0xC401CE)
+    for c in final:
+        assign_choices(c, choice_rng)
+
     # ── Write out ─────────────────────────────────────────────────────────────
     write_csv(out_csv, final)
     metadata = {
@@ -913,6 +1195,8 @@ def main() -> None:
         "csv_columns": CSV_COLUMNS,
         "max_facts_per_chain": MAX_FACTS_PER_CHAIN,
         "max_chain_anchors": MAX_CHAIN_ANCHORS,
+        "num_choices": NUM_CHOICES,
+        "choice_letters": CHOICE_LETTERS,
     }
     write_metadata(out_meta, metadata)
 

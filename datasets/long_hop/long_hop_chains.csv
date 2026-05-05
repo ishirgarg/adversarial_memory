@@ -1,103 +1,737 @@
-id,hop_count,fact_1,fact_2,fact_3,fact_4,chain_1,chain_2,chain_3,chain_4,chain_5,graded_question,ground_truth_answer
-longhop-1hop-001,1,Alyssa Koren founded Moonbridge Press.,Moonbridge Press publishes poetry collections.,,,Alyssa Koren,Moonbridge Press,poetry collections,,,What does the press founded by Alyssa Koren publish?,poetry collections
-longhop-1hop-002,1,I drink lemon water when I wake up.,When I drink lemon water I feel refreshed.,,,wake up,drink lemon water,feel refreshed,,,How do I feel when I wake up?,feel refreshed
-longhop-1hop-003,1,Dr. Havel owns Arcfen.,Arcfen exhibits contemporary sculpture.,,,Dr. Havel,Arcfen,contemporary sculpture,,,What type of art does Dr. Havel's gallery exhibit?,contemporary sculpture
-longhop-1hop-004,1,I choose vegetarian dishes when I dine out.,When I choose vegetarian dishes I order a lentil curry.,,,dine out,vegetarian dishes,lentil curry,,,What do I end up ordering when I dine out?,lentil curry
-longhop-1hop-005,1,After class I go to the campus library.,The campus library lends academic journals.,,,class,campus library,academic journals,,,What can I borrow after class?,academic journals
-longhop-1hop-006,1,Kaito Meru wrote The Glass Orchard.,The Glass Orchard explores urban loneliness.,,,Kaito Meru,The Glass Orchard,urban loneliness,,,What theme does Kaito Meru's book explore?,urban loneliness
-longhop-1hop-007,1,Excessive sugar makes me feel sluggish.,Feeling sluggish leads to reduced productivity.,,,Excessive sugar,feel sluggish,reduced productivity,,,What results from excessive sugar?,reduced productivity
-longhop-1hop-008,1,Every Sunday I water indoor herbs.,When I water indoor herbs I have healthy herbs.,,,Every Sunday,water indoor herbs,healthy herbs,,,What do I have every Sunday?,healthy herbs
-longhop-1hop-009,1,Buying roasted chickpeas satisfies my snack craving.,Satisfying my snack craving keeps me from overeating.,,,Buying roasted chickpeas,satisfies my snack craving,overeating,,,What does buying roasted chickpeas prevent?,overeating
-longhop-1hop-010,1,I book trains when I travel to the northern coast.,Booking trains leads to a relaxed trip.,,,travel to the northern coast,book trains,a relaxed trip,,,What do I get when I travel to the northern coast?,a relaxed trip
-longhop-1hop-011,1,When I sketch landscapes I use charcoal pencils.,Using charcoal pencils produces moody textures.,,,sketch landscapes,use charcoal pencils,moody textures,,,What textures do I produce when I sketch landscapes?,moody textures
-longhop-1hop-012,1,Aurix Labs acquired Venden Biotech.,Venden Biotech specializes in gene therapy.,,,Aurix Labs,Venden Biotech,gene therapy,,,What does the company acquired by Aurix Labs specialize in?,gene therapy
-longhop-1hop-013,1,If I skip breakfast I feel shaky.,Feeling shaky makes me avoid heavy exercise.,,,skip breakfast,feel shaky,heavy exercise,,,What do I avoid when I skip breakfast?,heavy exercise
-longhop-1hop-014,1,Sadia Ortiz illustrated The Lantern Cart.,The Lantern Cart targets young readers.,,,Sadia Ortiz,The Lantern Cart,young readers,,,Who is the audience for the book illustrated by Sadia Ortiz?,young readers
-longhop-1hop-015,1,I marinate tofu overnight when I prepare dinner.,Marinating tofu overnight enhances flavor.,,,prepare dinner,marinate tofu overnight,enhances flavor,,,What result do I get when I prepare dinner?,enhances flavor
-longhop-1hop-016,1,Lumo Park composed Night Harbor.,Night Harbor features a solo cello.,,,Lumo Park,Night Harbor,a solo cello,,,What instrument features in the piece composed by Lumo Park?,a solo cello
-longhop-1hop-017,1,I plant native wildflowers in spring.,Planting native wildflowers attracts pollinators.,,,spring,plant native wildflowers,pollinators,,,What do I attract in spring?,pollinators
-longhop-1hop-018,1,Sera Tan led the UX team.,The UX team redesigned the mobile app.,,,Sera Tan,UX team,redesigned the mobile app,,,What did Sera Tan's team do?,redesigned the mobile app
-longhop-1hop-019,1,After I stretch I start sprint drills.,Sprinting drills build explosive speed.,,,stretch,sprint drills,explosive speed,,,What do I develop after I stretch?,explosive speed
-longhop-1hop-020,1,Bayview Park became a wildlife corridor.,A wildlife corridor supports native species.,,,Bayview Park,wildlife corridor,native species,,,What does Bayview Park support?,native species
-longhop-1hop-021,1,Corinth Bank sponsors the annual fair.,The annual fair draws small local businesses.,,,Corinth Bank,annual fair,small local businesses,,,Who is drawn to the event sponsored by Corinth Bank?,small local businesses
-longhop-1hop-022,1,I avoid screens one hour before bed.,Avoiding screens aids sleep quality.,,,avoid screens,one hour before bed,sleep quality,,,What improves when I avoid screens?,sleep quality
-longhop-1hop-023,1,I compare prices online before buying electronics.,Comparing prices online saves money.,,,buying electronics,compare prices online,saves money,,,What benefit do I get when buying electronics?,saves money
-longhop-1hop-024,1,I adopt rescue cats from the Harbor Shelter.,Rescue cats from the Harbor Shelter adjust well at home.,,,adopt rescue cats,Harbor Shelter,adjust well at home,,,What happens when I adopt rescue cats?,adjust well at home
-longhop-1hop-025,1,When thunderstorms arrive I close the skylight.,Closing the skylight prevents water damage.,,,thunderstorms arrive,close the skylight,water damage,,,What do I prevent when thunderstorms arrive?,water damage
-longhop-1hop-026,1,Chef Marlo opened Ember Alley.,Ember Alley serves wood fired pizza.,,,Chef Marlo,Ember Alley,wood fired pizza,,,What type of food is served by the restaurant opened by Chef Marlo?,wood fired pizza
-longhop-1hop-027,1,Every morning I review flashcards.,Reviewing flashcards every morning increases vocabulary retention.,,,every morning,review flashcards,vocabulary retention,,,What increases when I study every morning?,vocabulary retention
-longhop-1hop-028,1,Ilvea Nursery cultivates dwarf apple trees.,Dwarf apple trees yield early harvests.,,,Ilvea Nursery,dwarf apple trees,early harvests,,,What do the trees from Ilvea Nursery produce?,early harvests
-longhop-1hop-029,1,If I do yoga before work I feel centered.,Feeling centered improves my focus.,,,do yoga before work,feel centered,focus,,,What improves when I do yoga before work?,focus
-longhop-1hop-030,1,Nora Kade produced Glass Shore.,Glass Shore profiles coastal fishermen.,,,Nora Kade,Glass Shore,coastal fishermen,,,Who is profiled in the documentary produced by Nora Kade?,coastal fishermen
-longhop-1hop-031,1,I swap soda for sparkling water at lunch.,Switching to sparkling water reduces my daily sugar.,,,swap soda,sparkling water,daily sugar,,,What decreases when I swap soda?,daily sugar
-longhop-1hop-032,1,The mentorship award promoted Talia Rhee.,Talia Rhee obtained a leadership role.,,,mentorship award,Talia Rhee,leadership role,,,What did the mentorship award lead to?,leadership role
-longhop-1hop-033,1,Mixing reagent A with B yields a blue precipitate.,A blue precipitate indicates copper ions.,,,Mixing reagent A with B,blue precipitate,copper ions,,,What ions are present when I mix reagent A with B?,copper ions
-longhop-1hop-034,1,Evelyn Cho founded Paperboat Press.,Paperboat Press publishes travel essays.,,,Evelyn Cho,Paperboat Press,travel essays,,,What does the press founded by Evelyn Cho publish?,travel essays
-longhop-2hop-001,2,Mara Quinn edits novels for Bluefield Press.,Bluefield Press is headquartered in Glenford.,Glenford hosts a weekly market square.,,Mara Quinn,Bluefield Press,Glenford,weekly market square,,What public place is ultimately associated with Mara Quinn?,weekly market square
-longhop-2hop-002,2,Green tea leads to alertness.,Alertness increases focused writing.,Focused writing produces the daily report.,,Green tea,alertness,focused writing,daily report,,What document results from Green tea?,daily report
-longhop-2hop-003,2,Dr. Hideo founded Nimble Optics.,Nimble Optics operates from Pinebridge.,Pinebridge contains an observatory tower.,,Dr. Hideo,Nimble Optics,Pinebridge,observatory tower,,What structure is ultimately associated with Dr. Hideo?,observatory tower
-longhop-2hop-004,2,I eat chili when sweating begins.,Sweating makes me start drinking water.,Drinking water leaves me feeling refreshed.,,eat chili,sweating,drinking water,feeling refreshed,,What do I eventually feel when I eat chili?,feeling refreshed
-longhop-2hop-005,2,River Islan flows into Harborpoint.,Harborpoint abuts Coastal Route 9.,Coastal Route 9 passes a lighthouse beacon.,,River Islan,Harborpoint,Coastal Route 9,lighthouse beacon,,What navigational aid is reached via River Islan?,lighthouse beacon
-longhop-2hop-006,2,Saeed Malik works part time at Kintara Bakery.,Kintara Bakery occupies Brindle Street.,Brindle Street hosts a corner bistro.,,Saeed Malik,Kintara Bakery,Brindle Street,corner bistro,,Which eatery is ultimately associated with Saeed Malik?,corner bistro
-longhop-2hop-007,2,On Saturday mornings I go cycling.,Cycling builds endurance.,Endurance allows tackling the mountain trail.,,Saturday mornings,cycling,endurance,mountain trail,,What trail can I eventually tackle after Saturday mornings?,mountain trail
-longhop-2hop-008,2,Skipping breakfast causes low blood sugar.,Low blood sugar triggers dizziness.,Dizziness prompts me to eat fruit.,,Skipping breakfast,low blood sugar,dizziness,eat fruit,,What do I end up doing if I skip breakfast?,eat fruit
-longhop-2hop-009,2,Tara B manages logistics at Bluefin Shipping.,Bluefin Shipping stores cargo in Warehouse 7.,Warehouse 7 employs a crane operator.,,Tara B,Bluefin Shipping,Warehouse 7,crane operator,,Who is ultimately employed where Tara B's company stores cargo?,crane operator
-longhop-2hop-010,2,Raindrops moisten wet soil.,Wet soil encourages germination.,Germination yields sunflower seedlings.,,Raindrops,wet soil,germination,sunflower seedlings,,What emerges after raindrops?,sunflower seedlings
-longhop-2hop-011,2,Olive oil flavors a marinade.,Marinade tenderizes chicken.,Tender chicken impresses a dinner party.,,Olive oil,marinade,tender chicken,dinner party,,What event benefits from olive oil?,dinner party
-longhop-2hop-012,2,First frost bruises late apples.,Late apples are ideal for pressing apples.,Pressing apples produces apple cider.,,First frost,late apples,pressing apples,apple cider,,What beverage comes after first frost?,apple cider
-longhop-2hop-013,2,Hector Rine partners with design studio Velo.,Design studio Velo displays work at the main plaza.,Main plaza features a public sculpture.,,Hector Rine,design studio Velo,main plaza,public sculpture,,What public artwork is ultimately associated with Hector Rine?,public sculpture
-longhop-2hop-014,2,Cold brew results in less acidity.,Less acidity aids better digestion.,Better digestion helps me sleep easier.,,Cold brew,less acidity,better digestion,sleep easier,,How does cold brew ultimately affect my sleep?,sleep easier
-longhop-2hop-015,2,Violet dye colors a fabric batch.,Fabric batch suffers sunlight exposure.,Sunlight exposure causes a faded hue.,,Violet dye,fabric batch,sunlight exposure,faded hue,,What is the eventual appearance of fabric dyed with violet dye?,faded hue
-longhop-2hop-016,2,Weekly rehearsal improves timing.,Timing builds ensemble cohesion.,Ensemble cohesion leads to a sold out concert.,,weekly rehearsal,timing,ensemble cohesion,sold out concert,,What concert outcome can result from weekly rehearsal?,sold out concert
-longhop-2hop-017,2,Sunrise brings chilly air.,Chilly air leads to hot tea.,Hot tea warms my hands.,,Sunrise,chilly air,hot tea,warms my hands,,What happens to my hands after sunrise?,warms my hands
-longhop-2hop-018,2,Overripe bananas go into banana bread batter.,Banana bread batter undergoes oven baking.,Oven baking creates a golden loaf.,,overripe bananas,banana bread batter,oven baking,golden loaf,,What baked item results from overripe bananas?,golden loaf
-longhop-2hop-019,2,A coastal storm produces washed up shells.,Washed up shells inspire a local artisan.,A local artisan crafts mosaic art.,,coastal storm,washed up shells,local artisan,mosaic art,,What artwork emerges after a coastal storm?,mosaic art
-longhop-2hop-020,2,A greenhouse creates high humidity.,High humidity fosters mildew.,Mildew ruins seedlings.,,greenhouse,high humidity,mildew,ruins seedlings,,What damage follows from a greenhouse?,ruins seedlings
-longhop-2hop-021,2,Festival weekend attracts street vendors.,Street vendors sell local crafts.,Local crafts appear in a charity auction.,,festival weekend,street vendors,local crafts,charity auction,,What event eventually features goods from a festival weekend?,charity auction
-longhop-2hop-022,2,Antoine Vega writes software for LumaSys.,LumaSys operates a data center.,Data center contains a backup generator.,,Antoine Vega,LumaSys,data center,backup generator,,What piece of equipment is ultimately at Antoine Vega's workplace?,backup generator
-longhop-2hop-023,2,Paper sketch suggests a redesign concept.,Redesign concept becomes a prototype model.,Prototype model enters user testing.,,paper sketch,redesign concept,prototype model,user testing,,What evaluation stage follows from a paper sketch?,user testing
-longhop-2hop-024,2,Fall migration boosts bird numbers.,Bird numbers prompt garden visits.,Garden visits result in seed dispersal.,,fall migration,bird numbers,garden visits,seed dispersal,,What ecological outcome follows from fall migration?,seed dispersal
-longhop-2hop-025,2,Seedlings start root growth.,Root growth allows transfer to larger pots.,Larger pots encourage bloom abundantly.,,seedlings,root growth,larger pots,bloom abundantly,,What is the eventual flowering result of seedlings?,bloom abundantly
-longhop-2hop-026,2,Coffee grounds enrich nutrient rich soil.,Nutrient rich soil nurtures garden tomatoes.,Garden tomatoes yield a sweet harvest.,,coffee grounds,nutrient rich soil,garden tomatoes,sweet harvest,,What outcome results from using coffee grounds?,sweet harvest
-longhop-2hop-027,2,Marcus Lyle founded Arbor Freight.,Arbor Freight maintains a central depot.,Central depot connects to a rail spur.,,Marcus Lyle,Arbor Freight,central depot,rail spur,,What rail feature is ultimately linked to Marcus Lyle?,rail spur
-longhop-2hop-028,2,Late nights cause skipping sleep.,Skipping sleep increases vending machine trips.,Vending machine trips yield candy bars.,,late nights,skipping sleep,vending machine trips,candy bars,,What snack follows from late nights?,candy bars
-longhop-2hop-029,2,Old journals contain family recipes.,Family recipes lead to cooking staples.,Cooking staples become comfort stew.,,old journals,family recipes,cooking staples,comfort stew,,What dish results from old journals?,comfort stew
-longhop-2hop-030,2,Weekday commute encourages listening to podcasts.,Listening to podcasts aids learning history facts.,Learning history facts helps win trivia.,,weekday commute,listening to podcasts,learning history facts,win trivia,,What achievement may result from a weekday commute?,win trivia
-longhop-2hop-031,2,Citrus zest flavors marmalade.,Marmalade brings a bright flavor.,Bright flavor complements morning toast.,,citrus zest,marmalade,bright flavor,morning toast,,What breakfast pairing follows from citrus zest?,morning toast
-longhop-2hop-032,2,Solar panels create excess electricity.,Excess electricity charges a battery bank.,Battery bank powers the lights.,,solar panels,excess electricity,battery bank,the lights,,What do solar panels eventually power?,the lights
-longhop-2hop-033,2,A veteran chef trains apprentices.,Apprentices staff the new bistro.,New bistro features a small dining room.,,veteran chef,apprentices,new bistro,small dining room,,What room is ultimately part of the project started by a veteran chef?,small dining room
-longhop-2hop-034,2,A library donation enlarges the children's section.,Children's section hosts extra storytime sessions.,Storytime sessions create engaged toddlers.,,library donation,children's section,storytime sessions,engaged toddlers,,Which group benefits from a library donation?,engaged toddlers
-longhop-3hop-001,3,I drink chamomile tea in late evening.,Late evening makes me fall asleep easily.,When I fall asleep easily I dream vividly.,Dreaming vividly makes me wake inspired.,drink chamomile tea,late evening,fall asleep easily,dream vividly,wake inspired,What do I end up doing after I drink chamomile tea?,wake inspired
-longhop-3hop-002,3,I buy hiking boots so I can hike longer.,Hiking longer helps me discover a hidden lake.,Discovering a hidden lake makes me take photographs.,Taking photographs leads me to create an album.,buy hiking boots,hike longer,discover a hidden lake,take photographs,create an album,What do I eventually create if I buy hiking boots?,create an album
-longhop-3hop-003,3,Amina Rafi filed the design patent Zeta-7.,The design patent Zeta-7 was licensed by HexaTech.,HexaTech maintains a research office in Port Ellen.,Port Ellen sits within the Northelm district.,Amina Rafi,design patent Zeta-7,HexaTech,Port Ellen,Northelm district,Which district is associated with Amina Rafi's filing?,Northelm district
-longhop-3hop-004,3,If a recipe calls for cilantro I cook without cilantro.,Cooking without cilantro makes the meal taste milder.,When a meal tastes milder I add lime.,When I add lime I feel satisfied.,if a recipe calls for cilantro,cook without cilantro,meal tastes milder,I add lime,feel satisfied,What do I end up feeling if a recipe calls for cilantro?,feel satisfied
-longhop-3hop-005,3,I install nightly updates and the system reboots.,System reboots force background services restart.,Background services restart when sync photos start.,When sync photos start cloud backup complete occurs.,install nightly updates,system reboots,background services restart,sync photos,cloud backup complete,What is completed after I install nightly updates?,cloud backup complete
-longhop-3hop-006,3,I borrow a record to listen to vintage jazz.,Listening to vintage jazz makes me remember grandfather.,Remembering grandfather leads me to visit the old neighborhood.,Visiting the old neighborhood helps me find the bakery.,borrow a record,listen to vintage jazz,remember grandfather,visit the old neighborhood,find the bakery,What do I eventually find when I borrow a record?,find the bakery
-longhop-3hop-007,3,I skip screen time before bed to fall asleep faster.,Falling asleep faster enables me to sleep without interruptions.,Sleeping without interruptions makes me wake energized.,Waking energized encourages me to run in the morning.,skip screen time before bed,fall asleep faster,sleep without interruptions,wake energized,run in the morning,What do I end up doing if I skip screen time before bed?,run in the morning
-longhop-3hop-008,3,Eldric Vale founded Larkspur Publishing.,Larkspur Publishing operates a distribution hub in Port Azul.,Port Azul sits on the coast of Mira County.,Mira County is part of the state of Caledon.,Eldric Vale,Larkspur Publishing,Port Azul,Mira County,state of Caledon,What state contains the town where Eldric Vale's publisher has a hub?,state of Caledon
-longhop-3hop-009,3,I collect sea glass and then sort by color.,I sort by color so I can arrange into patterns.,When I arrange into patterns I frame a mosaic.,When I frame a mosaic I gift to friends.,collect sea glass,sort by color,arrange into patterns,frame a mosaic,gift to friends,What do I do with my projects when I collect sea glass?,gift to friends
-longhop-3hop-010,3,I plant native shrubs to attract pollinators.,Attracting pollinators helps increase fruit set.,Increasing fruit set lets me harvest more berries.,Harvesting more berries lets me preserve for winter.,plant native shrubs,attract pollinators,increase fruit set,harvest more berries,preserve for winter,What do I eventually do when I plant native shrubs?,preserve for winter
-longhop-3hop-011,3,I accept freelance projects and therefore work late nights.,Working late nights usually makes me skip dinners.,Skipping dinners leads me to order takeout.,Ordering takeout helps me pay bills on time.,accept freelance projects,work late nights,skip dinners,order takeout,pay bills on time,What outcome follows when I accept freelance projects?,pay bills on time
-longhop-3hop-012,3,I practice scales daily to improve technique.,Improving technique helps me learn advanced pieces.,Learning advanced pieces prompts me to perform recitals.,Performing recitals makes me gain confidence.,practice scales daily,improve technique,learn advanced pieces,perform recitals,gain confidence,What do I gain if I practice scales daily?,gain confidence
-longhop-3hop-013,3,Juno Caldera wrote the novel Night Orchids.,Night Orchids was acquired by Orchid Press.,Orchid Press operates an office in Evershire.,Evershire lies within the region of Tarl.,Juno Caldera,novel Night Orchids,Orchid Press,Evershire,region of Tarl,Which region contains the office of the publisher of the novel Juno Caldera wrote?,region of Tarl
-longhop-3hop-014,3,I take the riverside route to see migrating swans.,Seeing migrating swans makes me stop to watch swans.,Stopping to watch swans leads me to call a friend.,Calling a friend leads me to arrange a weekend trip.,take the riverside route,see migrating swans,stop to watch swans,call a friend,arrange a weekend trip,What do I eventually arrange when I take the riverside route?,arrange a weekend trip
-longhop-3hop-015,3,I offer free mini sessions to book more clients.,Booking more clients prompts me to attend a bridal fair.,Attending a bridal fair helps me meet a planner.,Meeting a planner enables me to secure a wedding contract.,offer free mini sessions,book more clients,attend a bridal fair,meet a planner,secure a wedding contract,What do I eventually secure if I offer free mini sessions?,secure a wedding contract
-longhop-3hop-016,3,When I skip hydration I develop headaches.,Developing headaches makes me avoid bright screens.,Avoiding bright screens can improve concentration.,Improving concentration lets me finish tasks early.,skip hydration,develop headaches,avoid bright screens,improve concentration,finish tasks early,What do I end up doing if I skip hydration?,finish tasks early
-longhop-3hop-017,3,I experiment with sourdough until I master a signature loaf.,Mastering a signature loaf leads me to sell at farmers market.,Selling at farmers market helps me build a customer base.,Building a customer base motivates me to open a bakery stall.,experiment with sourdough,master a signature loaf,sell at farmers market,build a customer base,open a bakery stall,What do I ultimately open after I experiment with sourdough?,open a bakery stall
-longhop-3hop-018,3,I join a study group to improve understanding.,Improving understanding lets me write a review article.,Writing a review article helps me get invited to speak.,Getting invited to speak enables me to visit a research institute.,join a study group,improve understanding,write a review article,get invited to speak,visit a research institute,Where do I end up going when I join a study group?,visit a research institute
-longhop-3hop-019,3,I migrate to a new framework to rewrite modules.,Rewriting modules helps reduce latency.,Reducing latency lets me support more users.,When I support more users I expand to international markets.,migrate to a new framework,rewrite modules,reduce latency,support more users,expand to international markets,Where do I end up expanding if I migrate to a new framework?,expand to international markets
-longhop-3hop-020,3,I sketch portraits to learn color theory.,Learning color theory helps me paint in oils.,Painting in oils leads me to show at a gallery.,Showing at a gallery allows me to sell an original.,sketch portraits,learn color theory,paint in oils,show at a gallery,sell an original,What happens after I sketch portraits?,sell an original
-longhop-3hop-021,3,I limit caffeine after noon so I fall asleep sooner.,Falling asleep sooner lets me sleep longer.,Sleeping longer helps me process emotions.,Processing emotions makes me feel calmer.,limit caffeine after noon,fall asleep sooner,sleep longer,process emotions,feel calmer,What do I end up feeling if I limit caffeine after noon?,feel calmer
-longhop-3hop-022,3,We order local timber and then receive planks.,Receiving planks enables us to craft dining tables.,Crafting dining tables leads us to deliver to boutique stores.,Delivering to boutique stores helps us earn wholesale contracts.,order local timber,receive planks,craft dining tables,deliver to boutique stores,earn wholesale contracts,What do we eventually earn when we order local timber?,earn wholesale contracts
-longhop-3hop-023,3,I practice daily vocabulary to remember phrases.,Remembering phrases motivates me to speak with locals.,Speaking with locals improves my ability to understand accents.,Understanding accents lets me travel confidently.,practice daily vocabulary,remember phrases,speak with locals,understand accents,travel confidently,How do I travel after I practice daily vocabulary?,travel confidently
-longhop-3hop-024,3,I read bedtime stories to calm the toddler.,Calming the toddler allows me to extend sleep stretches.,Extending sleep stretches enables me to finish house chores.,Finishing house chores gives me time to watch a short show.,read bedtime stories,calm the toddler,extend sleep stretches,finish house chores,watch a short show,What do I end up doing when I read bedtime stories?,watch a short show
-longhop-3hop-025,3,I install rain barrels so I collect runoff.,Collecting runoff lets me water the herb garden.,Watering the herb garden helps me harvest fresh herbs.,Harvesting fresh herbs allows me to make pesto.,install rain barrels,collect runoff,water the herb garden,harvest fresh herbs,make pesto,What do I make if I install rain barrels?,make pesto
-longhop-3hop-026,3,I post weekly tutorials to gain followers.,Gaining followers leads me to receive interview requests.,Receiving interview requests leads me to appear on a podcast.,Appearing on a podcast helps me reach a new audience.,post weekly tutorials,gain followers,receive interview requests,appear on a podcast,reach a new audience,What audience do I reach after I post weekly tutorials?,reach a new audience
-longhop-3hop-027,3,I approve cycling lanes so more people cycle.,More people cycle prompts entrepreneurs to open bike shops.,Opening bike shops pushes owners to stock repair kits.,When shops stock repair kits cyclists join weekend cycling clubs.,approve cycling lanes,more people cycle,open bike shops,stock repair kits,join weekend cycling clubs,What do cyclists do after I approve cycling lanes?,join weekend cycling clubs
-longhop-3hop-028,3,I curate local bands to program diverse sets.,Programming diverse sets helps attract wider crowds.,Attracting wider crowds helps secure sponsorships.,Securing sponsorships helps fund next year's festival.,curate local bands,program diverse sets,attract wider crowds,secure sponsorships,fund next year's festival,What happens to the festival funding if I curate local bands?,fund next year's festival
-longhop-3hop-029,3,I adopt a senior dog and then visit the vet weekly.,Visiting the vet weekly helps me titrate medication.,Titrating medication helps improve mobility.,When we improve mobility we enjoy evening walks.,adopt a senior dog,visiting the vet weekly,titrate medication,improve mobility,enjoy evening walks,What do I end up enjoying after I adopt a senior dog?,enjoy evening walks
-longhop-3hop-030,3,I schedule weekly therapy to reflect on patterns.,Reflecting on patterns leads me to practice grounding exercises.,Practicing grounding exercises helps reduce panic episodes.,Reducing panic episodes encourages me to resume social activities.,schedule weekly therapy,reflect on patterns,practice grounding exercises,reduce panic episodes,resume social activities,What do I eventually do when I schedule weekly therapy?,resume social activities
-longhop-3hop-031,3,I complete a coding bootcamp and then build several projects.,Building several projects leads me to publish a portfolio website.,Publishing a portfolio website helps me receive interview offers.,Receiving interview offers allows me to accept a developer role.,complete a coding bootcamp,build several projects,publish a portfolio website,receive interview offers,accept a developer role,What position do I accept after I complete a coding bootcamp?,accept a developer role
-longhop-3hop-032,3,I submit a short film hoping the film is selected.,When the film is selected the film will screen at an indie festival.,When films screen at an indie festival meeting distributors becomes possible.,Meeting distributors enables me to negotiate a distribution deal.,submit a short film,film is selected,screen at an indie festival,meeting distributors,negotiate a distribution deal,What deal do I seek after I submit a short film?,negotiate a distribution deal
-longhop-3hop-033,3,I organize a bake sale for raising donations.,Raising donations encourages me to book a community hall.,Booking a community hall allows me to invite local bands.,Inviting local bands helps me host a fundraiser.,organize a bake sale,raising donations,book a community hall,invite local bands,host a fundraiser,What do I host when I organize a bake sale?,host a fundraiser
-longhop-3hop-034,3,I practice free throws to increase accuracy.,Increasing accuracy helps me score more points.,Scoring more points helps me win clutch games.,Winning clutch games lets me earn a trophy.,practice free throws,increase accuracy,score more points,win clutch games,earn a trophy,What prize do I hope to earn if I practice free throws?,earn a trophy
+id,hop_count,fact_1,fact_2,fact_3,fact_4,chain_1,chain_2,chain_3,chain_4,chain_5,graded_question,ground_truth_answer,choice_a,choice_b,choice_c,choice_d,choice_e,correct_choice
+longhop-1hop-001,1,Early yoga gives me a calm mind.,A calm mind leads me to finish journaling.,,,early yoga,calm mind,finish journaling,,,"When I do early yoga, what do I end up doing?
+
+Options:
+A. check email
+B. fold laundry
+C. finish journaling
+D. water the plants
+E. take out the trash",finish journaling,check email,fold laundry,finish journaling,water the plants,take out the trash,C
+longhop-1hop-002,1,Black coffee gives me jitters.,Jitters make me cancel meetings.,,,black coffee,jitters,cancel meetings,,,"After I drink black coffee, what do I end up doing?
+
+Options:
+A. buy groceries
+B. cook dinner
+C. water plants
+D. fold laundry
+E. cancel meetings",cancel meetings,buy groceries,cook dinner,water plants,fold laundry,cancel meetings,E
+longhop-1hop-003,1,Morning meditation gives me a clear head.,A clear head helps me tackle email.,,,morning meditation,clear head,tackle email,,,"When I do morning meditation, what do I end up doing?
+
+Options:
+A. bake cookies
+B. water plants
+C. fold laundry
+D. tackle email
+E. shoot hoops",tackle email,bake cookies,water plants,fold laundry,tackle email,shoot hoops,D
+longhop-1hop-004,1,I avoid noisy cafes because they trigger headaches.,Headaches push me to take a nap.,,,noisy cafes,headaches,take a nap,,,"If I'm around noisy cafes, what do I end up doing?
+
+Options:
+A. do the laundry
+B. cook dinner
+C. call a friend
+D. organize my desk
+E. take a nap",take a nap,do the laundry,cook dinner,call a friend,organize my desk,take a nap,E
+longhop-1hop-005,1,Jonas loves morning biking.,Morning biking makes Jonas eat a big breakfast.,,,Jonas,morning biking,eat a big breakfast,,,"After Jonas does his favorite routine, what does he do?
+
+Options:
+A. call a close friend
+B. eat a big breakfast
+C. pay some bills
+D. organize his bookshelf
+E. water the houseplants",eat a big breakfast,call a close friend,eat a big breakfast,pay some bills,organize his bookshelf,water the houseplants,B
+longhop-1hop-006,1,Writing poetry puts me in a peaceful mood.,A peaceful mood makes me call my mom.,,,writing poetry,peaceful mood,call my mom,,,"When I spend time writing poetry, what do I end up doing?
+
+Options:
+A. call my mom
+B. wash the dishes
+C. pay my bills
+D. clean the bathroom
+E. water the plants",call my mom,call my mom,wash the dishes,pay my bills,clean the bathroom,water the plants,A
+longhop-1hop-007,1,Mei craves spicy ramen.,Spicy ramen makes Mei sweat.,,,Mei,spicy ramen,sweat,,,"What reaction follows Mei's craved dish?
+
+Options:
+A. itch
+B. blink
+C. shiver
+D. yawn
+E. sweat",sweat,itch,blink,shiver,yawn,sweat,E
+longhop-1hop-008,1,Late-night snacking gives me restless sleep.,Restless sleep makes me oversleep.,,,late-night snacking,restless sleep,oversleep,,,"After late-night snacking, what happens to me in the morning?
+
+Options:
+A. oversleep
+B. commute
+C. shower
+D. meditate
+E. exercise",oversleep,oversleep,commute,shower,meditate,exercise,A
+longhop-1hop-009,1,Omar prefers ambient music.,Ambient music helps Omar finish chores.,,,Omar,ambient music,finish chores,,,"What does Omar ultimately do thanks to his preferred genre?
+
+Options:
+A. read novels
+B. finish chores
+C. solve puzzles
+D. play tennis
+E. bake cookies",finish chores,read novels,finish chores,solve puzzles,play tennis,bake cookies,B
+longhop-1hop-010,1,Cold showers give me alertness.,Alertness pushes me to start coding.,,,cold showers,alertness,start coding,,,"After I take cold showers, what do I start doing?
+
+Options:
+A. start coding
+B. start painting
+C. start knitting
+D. start gardening
+E. start baking",start coding,start coding,start painting,start knitting,start gardening,start baking,A
+longhop-1hop-011,1,Sofia enjoys solo travel.,Solo travel motivates Sofia to journal nightly.,,,Sofia,solo travel,journal nightly,,,"What habit comes from Sofia's enjoyment?
+
+Options:
+A. garden weekly
+B. floss daily
+C. journal nightly
+D. meditate regularly
+E. stretch daily",journal nightly,garden weekly,floss daily,journal nightly,meditate regularly,stretch daily,C
+longhop-1hop-012,1,Playing with my niece gives me a joyful mood.,A joyful mood inspires me to bake cookies.,,,playing with my niece,joyful mood,bake cookies,,,"When I'm playing with my niece, what do I end up doing?
+
+Options:
+A. fold laundry
+B. water the plants
+C. bake cookies
+D. organize my desk
+E. pay bills",bake cookies,fold laundry,water the plants,bake cookies,organize my desk,pay bills,C
+longhop-1hop-013,1,Ben favors strong coffee.,Strong coffee makes Ben talkative.,,,Ben,strong coffee,talkative,,,"What state does Ben reach because of his favored drink?
+
+Options:
+A. romantic
+B. nostalgic
+C. contemplative
+D. talkative
+E. indifferent",talkative,romantic,nostalgic,contemplative,talkative,indifferent,D
+longhop-1hop-014,1,Weekday fasting gives me clarity.,Clarity encourages me to write affirmations.,,,weekday fasting,clarity,write affirmations,,,"After I practice weekday fasting, what do I do next?
+
+Options:
+A. call friends
+B. fold laundry
+C. write affirmations
+D. water plants
+E. pay bills",write affirmations,call friends,fold laundry,write affirmations,water plants,pay bills,C
+longhop-1hop-015,1,Hana loves sunset runs.,Sunset runs make Hana sleep early.,,,Hana,sunset runs,sleep early,,,"What does Hana do after her loved activity?
+
+Options:
+A. water plants
+B. call friends
+C. practice piano
+D. check email
+E. sleep early",sleep early,water plants,call friends,practice piano,check email,sleep early,E
+longhop-1hop-016,1,Watching stand-up gets me laughing.,Laughing leads me to call my best friend.,,,watching stand-up,laughing,call my best friend,,,"After I start watching stand-up, what do I end up doing?
+
+Options:
+A. water my plants
+B. fold my laundry
+C. call my best friend
+D. brew some coffee
+E. take a short nap",call my best friend,water my plants,fold my laundry,call my best friend,brew some coffee,take a short nap,C
+longhop-1hop-017,1,When I skip breakfast I get shaky hands.,Shaky hands make me text my sister.,,,skip breakfast,shaky hands,text my sister,,,"When I skip breakfast, what do I end up doing?
+
+Options:
+A. text my sister
+B. organize my desk
+C. read the news
+D. water the plants
+E. fold the laundry",text my sister,text my sister,organize my desk,read the news,water the plants,fold the laundry,A
+longhop-1hop-018,1,When thunderstorms roll in I seek candlelight.,Candlelight gets me planning my week.,,,thunderstorms,candlelight,planning my week,,,"When thunderstorms roll in, what do I end up doing?
+
+Options:
+A. playing my piano
+B. folding my laundry
+C. tidying my desk
+D. planning my week
+E. brushing my teeth",planning my week,playing my piano,folding my laundry,tidying my desk,planning my week,brushing my teeth,D
+longhop-1hop-019,1,Nia enjoys morning smoothies.,Morning smoothies make Nia dance energetically.,,,Nia,morning smoothies,dance energetically,,,"Because of what Nia enjoys, what does she do?
+
+Options:
+A. read quietly
+B. paint patiently
+C. journal briefly
+D. dance energetically
+E. organize neatly",dance energetically,read quietly,paint patiently,journal briefly,dance energetically,organize neatly,D
+longhop-1hop-020,1,Late-night podcasts put me in a reflective mood.,A reflective mood makes me tidy my desk.,,,late-night podcasts,reflective mood,tidy my desk,,,"After late-night podcasts, what do I end up doing?
+
+Options:
+A. water my plants
+B. tidy my desk
+C. feed my cat
+D. do some stretches
+E. play a quick mobile game",tidy my desk,water my plants,tidy my desk,feed my cat,do some stretches,play a quick mobile game,B
+longhop-1hop-021,1,Marco favors cold brew coffee.,Cold brew coffee makes Marco overplan his day.,,,Marco,cold brew coffee,overplan his day,,,"Because of what Marco favors, what does he end up doing?
+
+Options:
+A. misplace his keys
+B. call his sister
+C. read a mystery novel
+D. water his plants
+E. overplan his day",overplan his day,misplace his keys,call his sister,read a mystery novel,water his plants,overplan his day,E
+longhop-1hop-022,1,After rainy walks I crave warm soup.,Warm soup relaxes me enough to fall asleep early.,,,rainy walks,warm soup,fall asleep early,,,"After rainy walks, what do I end up doing?
+
+Options:
+A. check the news
+B. call a friend
+C. pay my bills
+D. organize my desk
+E. fall asleep early",fall asleep early,check the news,call a friend,pay my bills,organize my desk,fall asleep early,E
+longhop-1hop-023,1,Zara enjoys solo road trips.,Solo road trips lead Zara to humming loudly.,,,Zara,solo road trips,humming loudly,,,"Because of what Zara enjoys, what does she end up doing?
+
+Options:
+A. humming loudly
+B. writing neatly
+C. folding laundry neatly
+D. reading quietly
+E. cooking patiently",humming loudly,humming loudly,writing neatly,folding laundry neatly,reading quietly,cooking patiently,A
+longhop-1hop-024,1,Early alarms put me in a groggy mood.,A groggy mood makes me skip the gym.,,,early alarms,groggy mood,skip the gym,,,"After early alarms, what do I end up doing?
+
+Options:
+A. pay the bills
+B. skip the gym
+C. water the plants
+D. visit the library
+E. organize the closet",skip the gym,pay the bills,skip the gym,water the plants,visit the library,organize the closet,B
+longhop-1hop-025,1,Elias loves spicy salsa.,Spicy salsa makes Elias drink lots of water.,,,Elias,spicy salsa,drink lots of water,,,"Because of what Elias loves, what does he do?
+
+Options:
+A. read a few pages
+B. drink lots of water
+C. call a close friend
+D. take a short nap
+E. tidy up his desk",drink lots of water,read a few pages,drink lots of water,call a close friend,take a short nap,tidy up his desk,B
+longhop-1hop-026,1,When I have Monday blues I play motivational playlists.,Motivational playlists push me to clean the kitchen.,,,monday blues,motivational playlists,clean the kitchen,,,"When I have monday blues, what do I end up doing?
+
+Options:
+A. clean the kitchen
+B. watch a documentary
+C. solve a crossword
+D. write in a journal
+E. browse online shops",clean the kitchen,clean the kitchen,watch a documentary,solve a crossword,write in a journal,browse online shops,A
+longhop-1hop-027,1,Tasha prefers neighborhood jogs.,Neighborhood jogs lead Tasha to long showers.,,,Tasha,neighborhood jogs,long showers,,,"Because of what Tasha prefers, what does she end up taking?
+
+Options:
+A. evening classes
+B. annual vacations
+C. online surveys
+D. detailed notes
+E. long showers",long showers,evening classes,annual vacations,online surveys,detailed notes,long showers,E
+longhop-1hop-028,1,Tasting bitter chocolate makes me tell nostalgic stories.,Nostalgic stories inspire me to call my grandmother.,,,tasting bitter chocolate,nostalgic stories,call my grandmother,,,"After tasting bitter chocolate, what do I do?
+
+Options:
+A. organize my desk
+B. check the mailbox
+C. water the plants
+D. fold the laundry
+E. call my grandmother",call my grandmother,organize my desk,check the mailbox,water the plants,fold the laundry,call my grandmother,E
+longhop-1hop-029,1,Leila practices sunrise yoga.,Sunrise yoga makes Leila brew ginger tea.,,,Leila,sunrise yoga,brew ginger tea,,,"Because Leila practices something, what does she brew afterward?
+
+Options:
+A. brew craft beer
+B. brew hard cider
+C. brew pale ale
+D. brew homemade mead
+E. brew ginger tea",brew ginger tea,brew craft beer,brew hard cider,brew pale ale,brew homemade mead,brew ginger tea,E
+longhop-1hop-030,1,Finishing a novel puts me in a celebratory mood.,A celebratory mood makes me order pizza.,,,finishing a novel,celebratory mood,order pizza,,,"After finishing a novel, what do I do?
+
+Options:
+A. water plants
+B. order pizza
+C. check email
+D. fold laundry
+E. sweep floors",order pizza,water plants,order pizza,check email,fold laundry,sweep floors,B
+longhop-1hop-031,1,On snow days I make hot cocoa.,Hot cocoa inspires me to build a blanket fort.,,,snow days,hot cocoa,build a blanket fort,,,"On snow days, what do I end up doing?
+
+Options:
+A. sort the laundry
+B. practice guitar scales
+C. water the houseplants
+D. build a blanket fort
+E. back up my files",build a blanket fort,sort the laundry,practice guitar scales,water the houseplants,build a blanket fort,back up my files,D
+longhop-2hop-001,2,Early sunshine puts me in a good mood.,When I'm in a good mood I call my cousin.,To call my cousin always leads to planning a beach day.,,early sunshine,good mood,call my cousin,planning a beach day,,"What do I end up doing because of early sunshine?
+
+Options:
+A. planning a beach day
+B. paying my utility bills
+C. organizing my closet
+D. cleaning out the fridge
+E. reading a mystery novel",planning a beach day,planning a beach day,paying my utility bills,organizing my closet,cleaning out the fridge,reading a mystery novel,A
+longhop-2hop-002,2,Priya enjoys acoustic guitar whenever she unwinds.,Hearing acoustic guitar makes Priya start soft singing.,Soft singing leaves Priya with a relaxed smile.,,Priya,acoustic guitar,soft singing,relaxed smile,,"When Priya is around the instrument she enjoys, what does she end up with?
+
+Options:
+A. competitive spirit
+B. focused mindset
+C. relaxed smile
+D. restless energy
+E. optimistic outlook",relaxed smile,competitive spirit,focused mindset,relaxed smile,restless energy,optimistic outlook,C
+longhop-2hop-003,2,Carlos adores rainy afternoons because they slow his day.,Rainy afternoons prompt Carlos to bake banana bread.,Banana bread makes Carlos post cheerful photos.,,Carlos,rainy afternoons,banana bread,post cheerful photos,,"On the kind of afternoons Carlos adores, what does he end up doing?
+
+Options:
+A. polish dress shoes
+B. post cheerful photos
+C. schedule a dentist appointment
+D. back up files
+E. update the calendar",post cheerful photos,polish dress shoes,post cheerful photos,schedule a dentist appointment,back up files,update the calendar,B
+longhop-2hop-004,2,New notebooks make me feel motivated.,When I feel motivated I tidy my workspace.,To tidy my workspace makes me start a fresh project.,,new notebooks,feel motivated,tidy my workspace,start a fresh project,,"What do I ultimately start because of new notebooks?
+
+Options:
+A. start a simple dinner
+B. start a phone call
+C. start a load of laundry
+D. start a home workout
+E. start a fresh project",start a fresh project,start a simple dinner,start a phone call,start a load of laundry,start a home workout,start a fresh project,E
+longhop-2hop-005,2,Midnight coding gives me eyestrain.,Eyestrain makes me wear blue-light glasses.,Blue-light glasses let me work more comfortably.,,midnight coding,eyestrain,blue-light glasses,work more comfortably,,"What do I end up doing after midnight coding?
+
+Options:
+A. cook more slowly
+B. work more comfortably
+C. listen more closely
+D. walk more briskly
+E. clean more thoroughly",work more comfortably,cook more slowly,work more comfortably,listen more closely,walk more briskly,clean more thoroughly,B
+longhop-2hop-006,2,Kenji dislikes crowded gyms.,Crowded gyms push Kenji toward solo runs.,Solo runs give Kenji a peaceful headspace.,,Kenji,crowded gyms,solo runs,peaceful headspace,,"Given Kenji's feelings about certain gyms, what does he finally get?
+
+Options:
+A. romantic mood
+B. generous mood
+C. indifferent attitude
+D. peaceful headspace
+E. nostalgic mood",peaceful headspace,romantic mood,generous mood,indifferent attitude,peaceful headspace,nostalgic mood,D
+longhop-2hop-007,2,The fresh basil smell makes me nostalgic.,When I'm nostalgic I cook family recipes.,To cook family recipes leads me to share long stories.,,fresh basil smell,nostalgic,cook family recipes,share long stories,,"What do I end up doing when the fresh basil smell hits me?
+
+Options:
+A. pay the bills
+B. do a workout
+C. fold the laundry
+D. share long stories
+E. answer work emails",share long stories,pay the bills,do a workout,fold the laundry,share long stories,answer work emails,D
+longhop-2hop-008,2,Nadia dreads long commutes.,Long commutes make Nadia play audiobooks.,Audiobooks help Nadia arrive energized.,,Nadia,long commutes,audiobooks,arrive energized,,"On the trips Nadia dreads, how does she end up arriving?
+
+Options:
+A. arrive confident
+B. arrive energized
+C. arrive optimistic
+D. arrive grateful
+E. arrive playful",arrive energized,arrive confident,arrive energized,arrive optimistic,arrive grateful,arrive playful,B
+longhop-2hop-009,2,Open windows leave me with a chilly room.,A chilly room makes me wrap in a thick blanket.,To wrap in a thick blanket makes me doze lightly.,,open windows,chilly room,wrap in a thick blanket,doze lightly,,"After I open windows, what do I finally do?
+
+Options:
+A. water plants
+B. tidy desk
+C. pay bills
+D. check email
+E. doze lightly",doze lightly,water plants,tidy desk,pay bills,check email,doze lightly,E
+longhop-2hop-010,2,Leo practices morning yoga because it centers him.,Morning yoga leads Leo to brew matcha.,To brew matcha puts Leo in a focused mindset.,,Leo,morning yoga,brew matcha,focused mindset,,"After the practice Leo favors, what state does he reach?
+
+Options:
+A. romantic mood
+B. focused mindset
+C. playful mood
+D. jealous mood
+E. competitive mindset",focused mindset,romantic mood,focused mindset,playful mood,jealous mood,competitive mindset,B
+longhop-2hop-011,2,Travel delays make me frustrated.,When I'm frustrated I put on calming playlists.,To put on calming playlists helps me breathe easier.,,travel delays,frustrated,put on calming playlists,breathe easier,,"When travel delays happen, what do I eventually manage to do?
+
+Options:
+A. breathe easier
+B. eat healthier
+C. cook faster
+D. shop smarter
+E. wake earlier",breathe easier,breathe easier,eat healthier,cook faster,shop smarter,wake earlier,A
+longhop-2hop-012,2,Yara cherishes quiet mornings.,Quiet mornings inspire Yara to sketch city scenes.,To sketch city scenes leads Yara to frame her artwork.,,Yara,quiet mornings,sketch city scenes,frame her artwork,,"On the kind of mornings Yara cherishes, what does she end up doing?
+
+Options:
+A. repair her bike
+B. pay her bills
+C. frame her artwork
+D. call her cousin
+E. cook her dinner",frame her artwork,repair her bike,pay her bills,frame her artwork,call her cousin,cook her dinner,C
+longhop-2hop-013,2,New hiking boots give me an itch to explore.,An itch to explore makes me map a trail.,To map a trail prompts me to invite a friend.,,new hiking boots,itch to explore,map a trail,invite a friend,,"Because of new hiking boots, what do I end up doing?
+
+Options:
+A. practice the piano
+B. invite a friend
+C. cook some pasta
+D. water the plants
+E. organize my closet",invite a friend,practice the piano,invite a friend,cook some pasta,water the plants,organize my closet,B
+longhop-2hop-014,2,Petra gets annoyed by late emails.,Late emails make Petra set Do Not Disturb.,To set Do Not Disturb helps Petra finish a chapter.,,Petra,late emails,set Do Not Disturb,finish a chapter,,"When dealing with what annoys Petra, what does she finally do?
+
+Options:
+A. prepare a snack
+B. water the plants
+C. sweep the floor
+D. fold the laundry
+E. finish a chapter",finish a chapter,prepare a snack,water the plants,sweep the floor,fold the laundry,finish a chapter,E
+longhop-2hop-015,2,Freshly sharpened pencils give me a creative buzz.,A creative buzz makes me doodle characters.,To doodle characters leads me to share sketches online.,,freshly sharpened pencils,creative buzz,doodle characters,share sketches online,,"What do I end up doing when freshly sharpened pencils inspire me?
+
+Options:
+A. brew a cup of tea
+B. organize the bookshelf
+C. water the plants
+D. fold the laundry
+E. share sketches online",share sketches online,brew a cup of tea,organize the bookshelf,water the plants,fold the laundry,share sketches online,E
+longhop-2hop-016,2,Ravi watches late-night horror movies when he feels daring.,Late-night horror movies make Ravi sleep with a light on.,To sleep with a light on makes Ravi wake up groggy.,,Ravi,late-night horror movies,sleep with a light on,wake up groggy,,"After the films Ravi watches late at night, how does he wake up?
+
+Options:
+A. wake up motivated
+B. wake up curious
+C. wake up optimistic
+D. wake up groggy
+E. wake up cheerful",wake up groggy,wake up motivated,wake up curious,wake up optimistic,wake up groggy,wake up cheerful,D
+longhop-2hop-017,2,Handwritten letters put me in a tender mood.,A tender mood makes me play old love songs.,To play old love songs leads me to text affectionate notes.,,handwritten letters,tender mood,play old love songs,text affectionate notes,,"Because of handwritten letters, what do I end up sending?
+
+Options:
+A. email project updates
+B. forward meeting agendas
+C. send calendar invites
+D. text affectionate notes
+E. share vacation photos",text affectionate notes,email project updates,forward meeting agendas,send calendar invites,text affectionate notes,share vacation photos,D
+longhop-2hop-018,2,Ivy loves spontaneous invitations.,Spontaneous invitations push Ivy to say yes to adventures.,To say yes to adventures helps Ivy meet new friends.,,Ivy,spontaneous invitations,say yes to adventures,meet new friends,,"After the invitations Ivy loves, what does she end up doing?
+
+Options:
+A. clean the kitchen
+B. practice yoga
+C. meet new friends
+D. cook a simple meal
+E. read a mystery novel",meet new friends,clean the kitchen,practice yoga,meet new friends,cook a simple meal,read a mystery novel,C
+longhop-2hop-019,2,Loud neighbors make me feel stressed.,When I feel stressed I brew mint tea.,I brew mint tea because it makes me calm down.,,loud neighbors,feel stressed,brew mint tea,calm down,,"Because of loud neighbors what do I ultimately do?
+
+Options:
+A. check email
+B. pay bills
+C. calm down
+D. water plants
+E. fold laundry",calm down,check email,pay bills,calm down,water plants,fold laundry,C
+longhop-2hop-020,2,A new canvas makes me set up my easel.,When I set up my easel I paint for hours.,I paint for hours until I lose track of time.,,new canvas,set up my easel,paint for hours,lose track of time,,"When I get a new canvas, what eventually happens?
+
+Options:
+A. water the houseplants
+B. call a close friend
+C. lose track of time
+D. practice the guitar
+E. organize my bookshelf",lose track of time,water the houseplants,call a close friend,lose track of time,practice the guitar,organize my bookshelf,C
+longhop-2hop-021,2,Lina loves quiet libraries.,Being in quiet libraries inspires Lina to write long letters.,When Lina chooses to write long letters she comes to feel nostalgic.,,Lina,quiet libraries,write long letters,feel nostalgic,,"What feeling does Lina reach because of something she loves?
+
+Options:
+A. feel optimistic
+B. feel apprehensive
+C. feel indifferent
+D. feel nostalgic
+E. feel amused",feel nostalgic,feel optimistic,feel apprehensive,feel indifferent,feel nostalgic,feel amused,D
+longhop-2hop-022,2,After morning jogs I crave smoothies.,When I crave smoothies I blend bananas.,I blend bananas because it makes me feel energized.,,morning jogs,crave smoothies,blend bananas,feel energized,,"After my morning jogs, what do I end up feeling?
+
+Options:
+A. feel energized
+B. feel nostalgic
+C. feel indifferent
+D. feel irritated
+E. feel contemplative",feel energized,feel energized,feel nostalgic,feel indifferent,feel irritated,feel contemplative,A
+longhop-2hop-023,2,Rain tapping windows makes me light a candle.,I light a candle before I read poetry.,When I read poetry I feel serene.,,rain tapping windows,light a candle,read poetry,feel serene,,"What state do I reach when rain tapping windows happens?
+
+Options:
+A. feel energetic
+B. feel serene
+C. feel competitive
+D. feel indifferent
+E. feel confident",feel serene,feel energetic,feel serene,feel competitive,feel indifferent,feel confident,B
+longhop-2hop-024,2,Maya dislikes crowded parties.,When crowded parties overwhelm Maya she decides to step outside.,Choosing to step outside makes Maya call her sister.,,Maya,crowded parties,step outside,call her sister,,"What does Maya do after the kind of gathering she dislikes?
+
+Options:
+A. fold her laundry
+B. call her sister
+C. do a crossword
+D. organize her desk
+E. water her plants",call her sister,fold her laundry,call her sister,do a crossword,organize her desk,water her plants,B
+longhop-2hop-025,2,Wearing my lucky sweater makes me feel confident.,When I feel confident I ask for feedback.,I ask for feedback because it helps me improve my work.,,wearing my lucky sweater,feel confident,ask for feedback,improve my work,,"When I'm wearing my lucky sweater, what do I ultimately achieve?
+
+Options:
+A. water the houseplants
+B. wash the car
+C. improve my work
+D. finish a jigsaw puzzle
+E. cook a simple dinner",improve my work,water the houseplants,wash the car,improve my work,finish a jigsaw puzzle,cook a simple dinner,C
+longhop-2hop-026,2,Late-night thunderstorms make me pace around.,When I pace around I organize my desk.,I organize my desk because it helps me sleep better.,,late-night thunderstorms,pace around,organize my desk,sleep better,,"During late-night thunderstorms, what do I ultimately achieve?
+
+Options:
+A. eat better
+B. travel more
+C. sleep better
+D. sing more
+E. save more",sleep better,eat better,travel more,sleep better,sing more,save more,C
+longhop-2hop-027,2,Arjun loves freshly mowed grass.,Smelling freshly mowed grass makes Arjun take slow walks.,When Arjun chooses to take slow walks he comes to feel peaceful.,,Arjun,freshly mowed grass,take slow walks,feel peaceful,,"Because of something Arjun loves, how does he end up feeling?
+
+Options:
+A. feel peaceful
+B. feel proud
+C. feel anxious
+D. feel amused
+E. feel motivated",feel peaceful,feel peaceful,feel proud,feel anxious,feel amused,feel motivated,A
+longhop-2hop-028,2,Finishing a tough workout makes me take long hot showers.,When I take long hot showers I sing softly.,I sing softly until I feel playful.,,finishing a tough workout,take long hot showers,sing softly,feel playful,,"After finishing a tough workout, what do I end up feeling?
+
+Options:
+A. feel curious
+B. feel playful
+C. feel contemplative
+D. feel nostalgic
+E. feel indifferent",feel playful,feel curious,feel playful,feel contemplative,feel nostalgic,feel indifferent,B
+longhop-2hop-029,2,Noah treasures early morning silence.,Early morning silence helps Noah write haiku.,Choosing to write haiku leads Noah to share his haiku with friends.,,Noah,early morning silence,write haiku,share his haiku with friends,,"Because Noah cherishes a certain time, what does he end up doing?
+
+Options:
+A. wash his car
+B. vacuum his living room
+C. fold his laundry
+D. share his haiku with friends
+E. pay his bills online",share his haiku with friends,wash his car,vacuum his living room,fold his laundry,share his haiku with friends,pay his bills online,D
+longhop-2hop-030,2,Midday headaches make me massage my temples.,When I massage my temples I brew chamomile.,I brew chamomile before I take a short nap.,,midday headaches,massage my temples,brew chamomile,take a short nap,,"When I get midday headaches, what do I end up doing?
+
+Options:
+A. take a short nap
+B. send a quick email
+C. wash a few dishes
+D. sweep the kitchen floor
+E. organize my desk",take a short nap,take a short nap,send a quick email,wash a few dishes,sweep the kitchen floor,organize my desk,A
+longhop-2hop-031,2,Priyanka enjoys foggy mornings.,On foggy mornings Priyanka chooses to wear bright scarves.,Deciding to wear bright scarves makes Priyanka feel cheerful.,,Priyanka,foggy mornings,wear bright scarves,feel cheerful,,"Because Priyanka enjoys a certain weather, how does she end up feeling?
+
+Options:
+A. feel cheerful
+B. feel competitive
+C. feel indifferent
+D. feel skeptical
+E. feel generous",feel cheerful,feel cheerful,feel competitive,feel indifferent,feel skeptical,feel generous,A
+longhop-2hop-032,2,Awkward small talk makes me check my phone.,I check my phone so I open my notes app.,When I open my notes app I jot haiku.,,awkward small talk,check my phone,open my notes app,jot haiku,,"When awkward small talk happens, what do I end up doing?
+
+Options:
+A. jot haiku
+B. fold laundry
+C. sort the mail
+D. brew tea
+E. water the plants",jot haiku,jot haiku,fold laundry,sort the mail,brew tea,water the plants,A
+longhop-3hop-001,3,Whenever I sip morning espresso I call my mom.,After I call my mom I plan a day trip.,When I plan a day trip I pack snacks.,Because I pack snacks I take scenic photos.,sip morning espresso,call my mom,plan a day trip,pack snacks,take scenic photos,"When I sip morning espresso, what do I end up doing?
+
+Options:
+A. organize the bookshelf
+B. practice guitar scales
+C. water the plants
+D. take scenic photos
+E. fold the laundry",take scenic photos,organize the bookshelf,practice guitar scales,water the plants,take scenic photos,fold the laundry,D
+longhop-3hop-002,3,When I wear noise-canceling headphones I focus deeply.,Because I focus deeply I finish tasks early.,When I finish tasks early I treat myself to sushi.,Because I treat myself to sushi I post a happy photo.,wear noise-canceling headphones,focus deeply,finish tasks early,treat myself to sushi,post a happy photo,"When I wear noise-canceling headphones, what do I end up doing?
+
+Options:
+A. organize the closet
+B. dust the bookshelves
+C. post a happy photo
+D. mail a birthday card
+E. water the plants",post a happy photo,organize the closet,dust the bookshelves,post a happy photo,mail a birthday card,water the plants,C
+longhop-3hop-003,3,Whenever I play lo-fi beats I draw doodles.,After I draw doodles I fill my sketchbook.,Because I fill my sketchbook I show my sister.,When I show my sister I get encouraging feedback.,play lo-fi beats,draw doodles,fill my sketchbook,show my sister,get encouraging feedback,"When I play lo-fi beats, what do I end up getting?
+
+Options:
+A. get the bills paid
+B. get a parking ticket
+C. get encouraging feedback
+D. get the laundry done
+E. get a seat on the bus",get encouraging feedback,get the bills paid,get a parking ticket,get encouraging feedback,get the laundry done,get a seat on the bus,C
+longhop-3hop-004,3,When I smell fresh cinnamon I start baking cookies.,After I start baking cookies I warm the kitchen.,Because I warm the kitchen I invite neighbors in.,When I invite neighbors in I feel festive.,smell fresh cinnamon,start baking cookies,warm the kitchen,invite neighbors in,feel festive,"When I smell fresh cinnamon, what feeling do I end up with?
+
+Options:
+A. feel cautious
+B. feel indifferent
+C. feel festive
+D. feel focused
+E. feel contemplative",feel festive,feel cautious,feel indifferent,feel festive,feel focused,feel contemplative,C
+longhop-3hop-005,3,Nikolai favors dark roast coffee.,Dark roast coffee makes Nikolai talk rapidly.,When Nikolai talks rapidly he steps outside.,Because Nikolai steps outside he breathes slower.,Nikolai,dark roast coffee,talks rapidly,steps outside,breathes slower,"What does Nikolai end up doing because he favors that coffee?
+
+Options:
+A. organizes files
+B. draws pictures
+C. breathes slower
+D. dusts shelves
+E. folds laundry",breathes slower,organizes files,draws pictures,breathes slower,dusts shelves,folds laundry,C
+longhop-3hop-006,3,When I finish a painting I post it online.,After I post it online I read comments.,Because I read comments I revise details.,When I revise details I feel satisfied.,finish a painting,post it online,read comments,revise details,feel satisfied,"After I finish a painting, what do I end up feeling?
+
+Options:
+A. feel hungry
+B. feel sleepy
+C. feel restless
+D. feel satisfied
+E. feel chilly",feel satisfied,feel hungry,feel sleepy,feel restless,feel satisfied,feel chilly,D
+longhop-3hop-007,3,When I hear ocean waves I feel nostalgic.,Because I feel nostalgic I pull old photos.,After I pull old photos I call my grandparents.,When I call my grandparents we laugh together.,hear ocean waves,feel nostalgic,pull old photos,call my grandparents,laugh together,"When I hear ocean waves, what do I end up doing?
+
+Options:
+A. laugh together
+B. make tea
+C. check the mailbox
+D. water the plants
+E. tidy up",laugh together,laugh together,make tea,check the mailbox,water the plants,tidy up,A
+longhop-3hop-008,3,Beatriz organizes karaoke nights.,Karaoke nights often make Beatriz lose her voice.,When Beatriz loses her voice she sips honey tea.,Because Beatriz sips honey tea she recovers quickly.,Beatriz,karaoke nights,loses her voice,sips honey tea,recovers quickly,"What outcome does Beatriz reach because she runs those nights?
+
+Options:
+A. cooks more often
+B. paints occasionally
+C. recovers quickly
+D. exercises regularly
+E. reads frequently",recovers quickly,cooks more often,paints occasionally,recovers quickly,exercises regularly,reads frequently,C
+longhop-3hop-009,3,Whenever I wear my hiking pack I take the forest trail.,When I take the forest trail I spot deer.,Because I spot deer I take quiet photos.,When I take quiet photos I feel proud.,wear my hiking pack,take the forest trail,spot deer,take quiet photos,feel proud,"What feeling do I reach when I wear my hiking pack?
+
+Options:
+A. feel sociable
+B. feel talkative
+C. feel proud
+D. feel annoyed
+E. feel indifferent",feel proud,feel sociable,feel talkative,feel proud,feel annoyed,feel indifferent,C
+longhop-3hop-010,3,Clara loves late-afternoon lattes.,Late-afternoon lattes give Clara jitters.,Because Clara has jitters she writes poetry.,When Clara writes poetry she sleeps peacefully.,Clara,late-afternoon lattes,jitters,writes poetry,sleeps peacefully,"Because Clara loves that latte habit, how does she end up sleeping?
+
+Options:
+A. sleeps noisily
+B. sleeps diagonally
+C. sleeps upright
+D. sleeps peacefully
+E. sleeps alone",sleeps peacefully,sleeps noisily,sleeps diagonally,sleeps upright,sleeps peacefully,sleeps alone,D
+longhop-3hop-011,3,When I clean my desk I feel productive.,Because I feel productive I start big tasks.,After I start big tasks I lose track of time.,When I lose track of time I forget lunch.,clean my desk,feel productive,start big tasks,lose track of time,forget lunch,"What do I end up doing whenever I clean my desk?
+
+Options:
+A. walk dog
+B. call mom
+C. paint nails
+D. forget lunch
+E. play chess",forget lunch,walk dog,call mom,paint nails,forget lunch,play chess,D
+longhop-3hop-012,3,If I skip my morning news I feel uninformed.,Because I feel uninformed I ask coworkers questions.,When I ask coworkers questions I learn surprising details.,Because I learn surprising details I feel curious all day.,skip my morning news,feel uninformed,ask coworkers questions,learn surprising details,feel curious all day,"If I skip my morning news, what feeling lasts for me?
+
+Options:
+A. feel patient all day
+B. feel optimistic all day
+C. feel curious all day
+D. feel sentimental all day
+E. feel creative all day",feel curious all day,feel patient all day,feel optimistic all day,feel curious all day,feel sentimental all day,feel creative all day,C
+longhop-3hop-013,3,Elena treasures a new fountain pen.,A new fountain pen makes Elena handwrite letters.,When Elena handwrites letters she adds watercolor accents.,Because Elena adds watercolor accents she feels artistic.,Elena,new fountain pen,handwrites letters,adds watercolor accents,feels artistic,"What feeling does Elena end up with because she treasures that pen?
+
+Options:
+A. feels indifferent
+B. feels competitive
+C. feels artistic
+D. feels cautious
+E. feels skeptical",feels artistic,feels indifferent,feels competitive,feels artistic,feels cautious,feels skeptical,C
+longhop-3hop-014,3,When I try a new recipe I mess up measurements.,Because I mess up measurements I start over.,After I start over I learn patience.,When I learn patience I feel more confident next time.,try a new recipe,mess up measurements,start over,learn patience,feel more confident next time,"When I try a new recipe, what do I end up feeling next time?
+
+Options:
+A. feel more sleepy next time
+B. feel more indifferent next time
+C. feel more distracted next time
+D. feel more sociable next time
+E. feel more confident next time",feel more confident next time,feel more sleepy next time,feel more indifferent next time,feel more distracted next time,feel more sociable next time,feel more confident next time,E
+longhop-3hop-015,3,I wear my old denim jacket because I feel nostalgic.,When I feel nostalgic I start playing cassette tapes.,Playing cassette tapes leads me to sway gently.,When I sway gently I hum a soft tune.,wear my old denim jacket,feel nostalgic,playing cassette tapes,sway gently,hum a soft tune,"After I wear my old denim jacket, what do I finally do?
+
+Options:
+A. hum a soft tune
+B. brew a cup of tea
+C. write a quick note
+D. update the calendar
+E. water the garden plants",hum a soft tune,hum a soft tune,brew a cup of tea,write a quick note,update the calendar,water the garden plants,A
+longhop-3hop-016,3,Keiko enjoys window shopping.,Window shopping often leads Keiko to spotting cozy cafes.,Spotting cozy cafes makes Keiko start ordering matcha lattes.,Ordering matcha lattes leads Keiko to doodle in a notebook.,Keiko,window shopping,spotting cozy cafes,ordering matcha lattes,doodle in a notebook,"Ultimately, what does Keiko do as a result of the pastime she enjoys?
+
+Options:
+A. sort the laundry
+B. cook a simple dinner
+C. call a close friend
+D. water the houseplants
+E. doodle in a notebook",doodle in a notebook,sort the laundry,cook a simple dinner,call a close friend,water the houseplants,doodle in a notebook,E
+longhop-3hop-017,3,Jamal loves cranking up funk music.,Cranking up funk music prompts Jamal to start dancing in the kitchen.,Dancing in the kitchen makes Jamal feel exhilarated.,Jamal can feel exhilarated and then whistle loudly.,Jamal,cranking up funk music,dancing in the kitchen,feel exhilarated,whistle loudly,"What does Jamal eventually do because of what he enjoys?
+
+Options:
+A. whistle loudly
+B. write neatly
+C. drive carefully
+D. walk slowly
+E. wait patiently",whistle loudly,whistle loudly,write neatly,drive carefully,walk slowly,wait patiently,A
+longhop-3hop-018,3,I practice tongue twisters to loosen my jaw.,When I loosen my jaw I start singing folk songs.,Singing folk songs makes me feel uplifted.,If I feel uplifted I share a warm hug.,practice tongue twisters,loosen my jaw,singing folk songs,feel uplifted,share a warm hug,"When I practice tongue twisters, what do I end up doing?
+
+Options:
+A. organize the bookshelf
+B. prepare a simple snack
+C. water the houseplants
+D. write a short note
+E. share a warm hug",share a warm hug,organize the bookshelf,prepare a simple snack,water the houseplants,write a short note,share a warm hug,E
+longhop-3hop-019,3,Nora prefers early morning runs.,Early morning runs usually have Nora taking long showers.,Taking long showers makes Nora feel reflective.,Nora can feel reflective and then write a heartfelt email.,Nora,early morning runs,taking long showers,feel reflective,write a heartfelt email,"Ultimately, what does Nora do as a result of her preference?
+
+Options:
+A. start a jigsaw puzzle
+B. organize the pantry
+C. write a heartfelt email
+D. paint her nails
+E. bake some muffins",write a heartfelt email,start a jigsaw puzzle,organize the pantry,write a heartfelt email,paint her nails,bake some muffins,C
+longhop-3hop-020,3,I tidy my inbox because I feel organized.,When I feel organized I start brewing cinnamon coffee.,Brewing cinnamon coffee makes me smile to myself.,After I smile to myself I plan a weekend picnic.,tidy my inbox,feel organized,brewing cinnamon coffee,smile to myself,plan a weekend picnic,"If I tidy my inbox, what do I end up doing?
+
+Options:
+A. do a few stretches
+B. take a short nap
+C. water the houseplants
+D. practice guitar chords
+E. plan a weekend picnic",plan a weekend picnic,do a few stretches,take a short nap,water the houseplants,practice guitar chords,plan a weekend picnic,E
+longhop-3hop-021,3,Anya loves sketching cityscapes.,Sketching cityscapes leaves Anya losing track of time.,Losing track of time sparks Anya's craving something cold.,Craving something cold leads Anya to sit by the window.,Anya,sketching cityscapes,losing track of time,craving something cold,sit by the window,"What does Anya end up doing because of what she loves?
+
+Options:
+A. organize the bookshelf
+B. water the plants
+C. practice a few stretches
+D. sit by the window
+E. call a friend",sit by the window,organize the bookshelf,water the plants,practice a few stretches,sit by the window,call a friend,D
+longhop-3hop-022,3,I wear my bright scarf to feel confident.,When I feel confident I begin striking up a conversation.,Striking up a conversation helps me learn a new perspective.,After I learn a new perspective I sleep with a smile.,wear my bright scarf,feel confident,striking up a conversation,learn a new perspective,sleep with a smile,"When I wear my bright scarf, what do I finally do?
+
+Options:
+A. wash the dishes
+B. water the plants
+C. cook a quick meal
+D. sleep with a smile
+E. pay the bills",sleep with a smile,wash the dishes,water the plants,cook a quick meal,sleep with a smile,pay the bills,D
+longhop-3hop-023,3,Felix likes tuning his guitar.,Tuning his guitar leads Felix to humming old melodies.,Humming old melodies makes Felix feel wistful.,Felix can feel wistful and then send a late-night text.,Felix,tuning his guitar,humming old melodies,feel wistful,send a late-night text,"What does Felix eventually do as a result of his hobby?
+
+Options:
+A. organize a desk drawer
+B. take out the recycling
+C. send a late-night text
+D. water the houseplants
+E. start a load of laundry",send a late-night text,organize a desk drawer,take out the recycling,send a late-night text,water the houseplants,start a load of laundry,C
+longhop-3hop-024,3,I light a lavender candle to unwind.,When I unwind I start reading travel blogs.,Reading travel blogs makes me get inspired.,When I get inspired I sketch a trip route.,light a lavender candle,unwind,reading travel blogs,get inspired,sketch a trip route,"When I light a lavender candle, what do I end up doing?
+
+Options:
+A. rinse the dishes
+B. fold the laundry
+C. water the houseplants
+D. sketch a trip route
+E. sort the mail",sketch a trip route,rinse the dishes,fold the laundry,water the houseplants,sketch a trip route,sort the mail,D
+longhop-3hop-025,3,Gavin likes brewing strong espresso.,Brewing strong espresso leads Gavin to pacing around the room.,Pacing around the room makes Gavin think out loud.,Gavin will think out loud and then record a voice memo.,Gavin,brewing strong espresso,pacing around the room,think out loud,record a voice memo,"Because Gavin likes that habit, what does he finally do?
+
+Options:
+A. read the news
+B. water the plants
+C. record a voice memo
+D. wash the dishes
+E. send a text message",record a voice memo,read the news,water the plants,record a voice memo,wash the dishes,send a text message,C
+longhop-3hop-026,3,I play Sudoku on my phone because I feel restless.,When I feel restless I start brewing herbal tea.,Brewing herbal tea helps me settle on the couch.,After I settle on the couch I drift into a nap.,play Sudoku on my phone,feel restless,brewing herbal tea,settle on the couch,drift into a nap,"When I play Sudoku on my phone, what do I eventually do?
+
+Options:
+A. tune my guitar
+B. polish my shoes
+C. drift into a nap
+D. mend a loose button
+E. write a postcard",drift into a nap,tune my guitar,polish my shoes,drift into a nap,mend a loose button,write a postcard,C
+longhop-3hop-027,3,I doodle during meetings to calm my nerves.,When I calm my nerves I begin snacking on almonds.,Snacking on almonds makes me feel focused.,If I feel focused I finish my task list.,doodle during meetings,calm my nerves,snacking on almonds,feel focused,finish my task list,"When I doodle during meetings, what do I end up doing?
+
+Options:
+A. play a video game
+B. practice the guitar
+C. call my best friend
+D. finish my task list
+E. watch a nature documentary",finish my task list,play a video game,practice the guitar,call my best friend,finish my task list,watch a nature documentary,D
+longhop-3hop-028,3,Iris likes watering her houseplants.,Watering her houseplants leads Iris to opening the curtains.,Opening the curtains makes Iris feel energized.,Iris can feel energized and then start a dance playlist.,Iris,watering her houseplants,opening the curtains,feel energized,start a dance playlist,"What does Iris ultimately do because of what she likes?
+
+Options:
+A. book a table for dinner
+B. send a quick email
+C. write a grocery list
+D. renew a library book
+E. start a dance playlist",start a dance playlist,book a table for dinner,send a quick email,write a grocery list,renew a library book,start a dance playlist,E
+longhop-3hop-029,3,I knit a scarf to relax.,When I relax I start listening to podcasts.,Listening to podcasts makes me laugh unexpectedly.,After I laugh unexpectedly I text my brother.,knit a scarf,relax,listening to podcasts,laugh unexpectedly,text my brother,"When I knit a scarf, what do I end up doing?
+
+Options:
+A. clean my glasses
+B. text my brother
+C. replace a lightbulb
+D. book a haircut
+E. check the thermostat",text my brother,clean my glasses,text my brother,replace a lightbulb,book a haircut,check the thermostat,B

@@ -34,6 +34,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -195,49 +196,55 @@ FACT_RETRIEVAL_SCHEMA = {
 }
 
 # ---------------------------------------------------------------------------
-# Question-level: Invocation check (only if every fact reached "correct")
+# Question-level: MCQ response parsing (replaces former LLM invocation check)
 # ---------------------------------------------------------------------------
 
-INVOCATION_SYSTEM = """You are checking whether an AI model correctly chained a sequence of retrieved
-chain-links to answer a multi-hop reasoning question.
+VALID_CHOICE_LETTERS = {"A", "B", "C", "D", "E"}
+_JSON_OBJ_RE = re.compile(r"\{[^{}]*\}")
+_LETTER_RE = re.compile(r"\b([ABCDE])\b")
 
-All the needed chain-links were present in the retrieved memories. The model
-should have followed the chain end-to-end (head -> intermediate -> ... ->
-terminal) and produced the terminal entity as its answer."""
 
-INVOCATION_USER = """QUESTION:
-{question}
+def parse_selected_choice(response: str) -> Optional[str]:
+    """Extract the model's chosen letter from its MCQ answer.
 
-CHAIN OF FACTS (every fact was retrieved):
-{expected_support_messages}
+    Tries the structured JSON schema first ({"selected_choice": "A"}), then
+    falls back to any standalone uppercase letter A-E that appears at the end
+    of the response. Returns None if nothing parseable is found.
+    """
+    if not response:
+        return None
+    text = response.strip()
 
-GROUND TRUTH ANSWER (the terminal entity of the chain):
-{ground_truth_answer}
+    # Pass 1: try parsing the entire response as JSON.
+    try:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            val = obj.get("selected_choice") or obj.get("answer") or obj.get("choice")
+            if isinstance(val, str):
+                letter = val.strip().upper()
+                if letter in VALID_CHOICE_LETTERS:
+                    return letter
+    except json.JSONDecodeError:
+        pass
 
-MODEL RESPONSE:
-{llm_response}
+    # Pass 2: hunt for any embedded JSON object.
+    for match in _JSON_OBJ_RE.finditer(text):
+        try:
+            obj = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            val = obj.get("selected_choice") or obj.get("answer") or obj.get("choice")
+            if isinstance(val, str):
+                letter = val.strip().upper()
+                if letter in VALID_CHOICE_LETTERS:
+                    return letter
 
-Did the model correctly chain the retrieved facts to produce the ground-truth
-terminal entity? Synonyms, paraphrases, and trivially equivalent strings count.
-A response that names the terminal entity together with extra commentary still
-counts as correct, as long as the answer it commits to is the right entity."""
-
-INVOCATION_SCHEMA = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "invocation_check",
-        "schema": {
-            "type": "object",
-            "properties": {
-                "correctly_invoked": {"type": "boolean"},
-                "invocation_reasoning": {"type": "string"},
-            },
-            "required": ["correctly_invoked", "invocation_reasoning"],
-            "additionalProperties": False,
-        },
-        "strict": True,
-    },
-}
+    # Pass 3: fall back to the last lone uppercase A-E in the response.
+    matches = _LETTER_RE.findall(text)
+    if matches:
+        return matches[-1]
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +312,10 @@ def extract_graded_traces(data: dict) -> List[dict]:
             "answer_chain": row.get("answer_chain", []),
             "ground_truth_answer": row["ground_truth_answer"],
             "support_set_size": len(row["facts"]),
+            "question_stem": row.get("graded_question_stem"),
             "question": trace["query"],
+            "choices": row.get("choices"),
+            "correct_choice": row.get("correct_choice"),
             "retrieved_memories": trace["retrieved_memories"],
             "llm_response": trace["response"],
             "formatted_prompt": trace["formatted_prompt"],
@@ -379,6 +389,9 @@ def analyze_trace(
     result["error_type"] = None
     result["correctly_invoked"] = None
     result["invocation_reasoning"] = None
+    result["selected_choice"] = None
+    result["correct_choice"] = trace.get("correct_choice")
+    result["final_answer_correct"] = None
     result["analysis_error"] = None
 
     total_in = 0
@@ -483,26 +496,34 @@ def analyze_trace(
 
         result["per_fact_results"] = fact_results
 
-        # ── Invocation check ─────────────────────────────────────────────────
+        # ── Invocation check (deterministic MCQ parsing) ────────────────────
+        # The eval prompt asks the model for {"selected_choice": "<letter>"}.
+        # Compare the parsed letter against the dataset's correct_choice; this
+        # replaces the previous LLM-judge invocation check.
+        selected = parse_selected_choice(trace.get("llm_response", "") or "")
+        correct_choice = trace.get("correct_choice")
+        result["selected_choice"] = selected
+        if selected is None or correct_choice is None:
+            final_correct = False
+            reasoning = (
+                "could not parse a choice letter from the model response"
+                if selected is None
+                else "trace has no correct_choice — regenerate the dataset with the MCQ-aware generator"
+            )
+        else:
+            final_correct = (selected == correct_choice)
+            reasoning = (
+                f"model selected {selected}; correct choice is {correct_choice}"
+            )
+        result["final_answer_correct"] = final_correct
+
         all_correct = N > 0 and all(fr["category"] == "correct" for fr in fact_results)
         if all_correct:
-            invocation_data, in_tok, out_tok = _call(
-                client, model,
-                system=INVOCATION_SYSTEM,
-                user=INVOCATION_USER.format(
-                    question=trace.get("question", ""),
-                    expected_support_messages=format_support_messages(target_messages),
-                    ground_truth_answer=trace.get("ground_truth_answer", ""),
-                    llm_response=trace.get("llm_response", ""),
-                ),
-                schema=INVOCATION_SCHEMA,
-            )
-            total_in += in_tok
-            total_out += out_tok
-            result["correctly_invoked"] = invocation_data["correctly_invoked"]
-            result["invocation_reasoning"] = invocation_data["invocation_reasoning"]
-            result["judge_result"] = "correct" if invocation_data["correctly_invoked"] else "incorrect"
+            result["correctly_invoked"] = final_correct
+            result["invocation_reasoning"] = reasoning
+            result["judge_result"] = "correct" if final_correct else "incorrect"
         else:
+            result["invocation_reasoning"] = reasoning
             result["judge_result"] = "incorrect"
 
         result["error_type"] = collapse_error_type(fact_results, result["correctly_invoked"])
@@ -548,6 +569,16 @@ def print_summary(results: list, judge_input_tokens: int, judge_output_tokens: i
     if total:
         print(f"Correct:              {correct}  ({correct/total:.1%})")
         print(f"Incorrect:            {incorrect}  ({incorrect/total:.1%})")
+
+    # Raw MCQ accuracy (model's chosen letter == correct letter), independent
+    # of whether the per-fact pipeline was clean.
+    parseable = sum(1 for r in results if r.get("selected_choice") is not None)
+    final_correct = sum(1 for r in results if r.get("final_answer_correct"))
+    if total:
+        print(
+            f"MCQ letter-match:     {final_correct}  ({final_correct/total:.1%})  "
+            f"[parsed letter from {parseable}/{total} responses]"
+        )
 
     error_types = ["not_stored", "summary_error", "not_retrieved", "reasoning_error"]
     type_counts: Dict[str, int] = {et: 0 for et in error_types}
@@ -661,7 +692,8 @@ def save_outputs(results: list, output_dir: Path, ts: str) -> Tuple[Path, Path]:
     fieldnames = [
         "example_id", "hop_count", "support_set_size",
         "conversation_id", "judge_result", "error_type", "correctly_invoked",
-        "ground_truth_answer", "question",
+        "selected_choice", "correct_choice", "final_answer_correct",
+        "ground_truth_answer", "question_stem",
         "n_facts",
         "n_not_stored", "n_summary_error", "n_not_retrieved", "n_correct",
         "frac_not_stored", "frac_summary_error", "frac_not_retrieved", "frac_correct",
