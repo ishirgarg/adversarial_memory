@@ -144,18 +144,50 @@ def write_tables() -> None:
 
 # ------------------------- success-vs-k (per test-taker) -----------------------
 
+# Persona-retrieval is split into two panels (non-misleading and misleading), so
+# the per-model success-vs-k figure is laid out 3 rows × 2 columns.
+_SUCCESS_PANELS = [
+    ("coexisting", "Coexisting-Facts", None),
+    ("conditional", "Conditional-Facts", None),
+    ("conditional_hard", "Conditional-Facts (Hard)", None),
+    ("persona_retrieval", "Persona-Retrieval\n(Non-misleading)",
+     lambda r: r.get("question_type") == "base"),
+    ("persona_retrieval", "Persona-Retrieval\n(Misleading)",
+     lambda r: r.get("question_type") == "misleading"),
+    ("long_hop", "Long-Hop", None),
+]
+_SUCCESS_ROWS = 3
+_SUCCESS_COLS = 2
+
+
+def _filtered_grouped(dataset, memory, model, rec_filter):
+    grouped = collect_records(dataset, memory, model)
+    if rec_filter is None:
+        return grouped
+    out = {}
+    for k, recs in grouped.items():
+        kept = [r for r in recs if rec_filter(r)]
+        if kept:
+            out[k] = kept
+    return out
+
+
 def plot_success_vs_k_per_model() -> None:
     base = FIG_DIR / "success_vs_k"
     base.mkdir(parents=True, exist_ok=True)
-    n_ds = len(DATASETS)
     for model in REPORT_MODELS:
-        fig, axes = plt.subplots(1, n_ds, figsize=(3.6 * n_ds, 3.6), sharey=True)
+        fig, axes = plt.subplots(
+            _SUCCESS_ROWS, _SUCCESS_COLS,
+            figsize=(3.6 * _SUCCESS_COLS, 3.6 * _SUCCESS_ROWS),
+            sharey=True,
+        )
         axes = np.atleast_1d(axes).flatten()
         any_curve = False
-        for i, (ax, dataset) in enumerate(zip(axes, DATASETS)):
+        for i, (ax, panel) in enumerate(zip(axes, _SUCCESS_PANELS)):
+            dataset, title, rec_filter = panel
             ds_any = False
             for memory in MEMORY_SYSTEMS:
-                grouped = collect_records(dataset, memory, model)
+                grouped = _filtered_grouped(dataset, memory, model, rec_filter)
                 ks = sorted(grouped.keys())
                 if not ks:
                     continue
@@ -173,17 +205,19 @@ def plot_success_vs_k_per_model() -> None:
                 )
                 ds_any = True
                 any_curve = True
-            ax.set_title(DATASET_TITLES[dataset])
+            ax.set_title(title)
             ax.set_xlabel(X_AXIS_LABEL)
-            if i == 0:
+            if i % _SUCCESS_COLS == 0:
                 ax.set_ylabel("Success Rate")
             ax.set_ylim(0, 1)
             style_k_axis(ax)
             ax.grid(True, alpha=0.3)
             if ds_any:
                 ax.legend()
+        for ax in axes[len(_SUCCESS_PANELS):]:
+            ax.axis("off")
         fig.suptitle(f"Success rate vs. k — {model}")
-        fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0, 0, 1, 0.94])
+        fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0.03, 0, 1, 0.94])
         out = base / f"{model}.pdf"
         if any_curve:
             fig.savefig(out, bbox_inches="tight", pad_inches=0.05)
@@ -193,18 +227,36 @@ def plot_success_vs_k_per_model() -> None:
 
 # ----------------------- performance vs test-taker model ----------------------
 
+_PERF_PANELS = [
+    ("coexisting", "Coexisting-Facts", None),
+    ("conditional", "Conditional-Facts", None),
+    ("conditional_hard", "Conditional-Facts (Hard)", None),
+    ("persona_retrieval", "Persona-Retrieval\n(Non-misleading)",
+     lambda r: r.get("question_type") == "base"),
+    ("persona_retrieval", "Persona-Retrieval\n(Misleading)",
+     lambda r: r.get("question_type") == "misleading"),
+    ("long_hop", "Long-Hop", None),
+]
+_PERF_ROWS = 3
+_PERF_COLS = 2
+
+
 def plot_perf_vs_model() -> None:
     out_dir = FIG_DIR / "perf_vs_model"
     out_dir.mkdir(parents=True, exist_ok=True)
-    n_ds = len(DATASETS)
     for memory in MEMORY_SYSTEMS:
-        fig, axes = plt.subplots(1, n_ds, figsize=(3.6 * n_ds, 3.6), sharey=True)
+        fig, axes = plt.subplots(
+            _PERF_ROWS, _PERF_COLS,
+            figsize=(3.6 * _PERF_COLS, 3.6 * _PERF_ROWS),
+            sharey=True,
+        )
         axes = np.atleast_1d(axes).flatten()
         any_curve = False
-        for i, (ax, dataset) in enumerate(zip(axes, DATASETS)):
+        for i, (ax, panel) in enumerate(zip(axes, _PERF_PANELS)):
+            dataset, title, rec_filter = panel
             ds_any = False
             for model in REPORT_MODELS:
-                grouped = collect_records(dataset, memory, model)
+                grouped = _filtered_grouped(dataset, memory, model, rec_filter)
                 ks = sorted(grouped.keys())
                 if not ks:
                     continue
@@ -222,19 +274,19 @@ def plot_perf_vs_model() -> None:
                 )
                 ds_any = True
                 any_curve = True
-            ax.set_title(DATASET_TITLES[dataset])
+            ax.set_title(title)
             ax.set_xlabel(X_AXIS_LABEL)
-            if i == 0:
+            if i % _PERF_COLS == 0:
                 ax.set_ylabel("Success Rate")
             ax.set_ylim(0, 1)
             style_k_axis(ax)
             ax.grid(True, alpha=0.3)
             if ds_any:
                 ax.legend()
-        for ax in axes[n_ds:]:
+        for ax in axes[len(_PERF_PANELS):]:
             ax.axis("off")
         fig.suptitle(f"Success vs. k by test-taker model — {MEMORY_DISPLAY[memory]}")
-        fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0, 0, 1, 0.94])
+        fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0.03, 0, 1, 0.94])
         out = out_dir / f"{memory}.pdf"
         if any_curve:
             fig.savefig(out, bbox_inches="tight", pad_inches=0.05)

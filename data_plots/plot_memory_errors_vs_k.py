@@ -66,15 +66,35 @@ def memory_error_fractions(records, z: float = 1.96):
     return out, n
 
 
-def collect_per_k(dataset, memory, model):
+def collect_per_k(dataset, memory, model, rec_filter=None):
     recs = load_analysis(dataset, memory, model=model)
     out = defaultdict(list)
     for r in recs:
+        if rec_filter is not None and not rec_filter(r):
+            continue
         out[r["_k"]].append(r)
     return dict(sorted(out.items()))
 
 
-def plot_for_dataset_model(dataset: str, model: str):
+# Per-dataset output files. Persona-retrieval is split into two files
+# (non-misleading and misleading) by filtering on question_type.
+# Tuple: (dataset, file_suffix, title_override_or_None, rec_filter_or_None).
+_DATASET_PANELS = [
+    ("coexisting", "coexisting", None, None),
+    ("conditional", "conditional", None, None),
+    ("conditional_hard", "conditional_hard", None, None),
+    ("persona_retrieval", "persona_retrieval_nonmisleading",
+     "Persona-Retrieval (Non-misleading)",
+     lambda r: r.get("question_type") == "base"),
+    ("persona_retrieval", "persona_retrieval_misleading",
+     "Persona-Retrieval (Misleading)",
+     lambda r: r.get("question_type") == "misleading"),
+    ("long_hop", "long_hop", None, None),
+]
+
+
+def plot_for_dataset_model(dataset: str, model: str, file_suffix: str = None,
+                           title_override: str = None, rec_filter=None):
     n_mem = len(MEMORY_SYSTEMS)
     fig, axes = plt.subplots(1, n_mem, figsize=(3.4 * n_mem, 3.4), sharex=True, sharey=True)
     if n_mem == 1:
@@ -82,7 +102,7 @@ def plot_for_dataset_model(dataset: str, model: str):
 
     any_data = False
     for i, (ax, memory) in enumerate(zip(axes, MEMORY_SYSTEMS)):
-        per_k = collect_per_k(dataset, memory, model)
+        per_k = collect_per_k(dataset, memory, model, rec_filter=rec_filter)
         ks = sorted(per_k.keys())
         if not ks:
             ax.set_title(f"{MEMORY_DISPLAY[memory]} — no data")
@@ -134,13 +154,14 @@ def plot_for_dataset_model(dataset: str, model: str):
         plt.close(fig)
         return None
 
-    fig.suptitle(f"Memory error breakdown vs. k — {DATASET_TITLES[dataset]} / {model}")
-    fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0, 0, 1, 0.94])
+    title = title_override if title_override is not None else DATASET_TITLES[dataset]
+    fig.suptitle(f"Memory error breakdown vs. k — {title} / {model}")
+    fig.tight_layout(pad=0.4, w_pad=0.3, rect=[0.05, 0, 1, 0.94])
 
     out_dir = OUT_DIR / model
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"{dataset}.pdf"
-    fig.savefig(out)
+    out = out_dir / f"{file_suffix or dataset}.pdf"
+    fig.savefig(out, bbox_inches="tight", pad_inches=0.05)
     print(f"wrote {out}")
     plt.close(fig)
     return out
@@ -148,8 +169,11 @@ def plot_for_dataset_model(dataset: str, model: str):
 
 def main():
     for model in REPORT_MODELS:
-        for dataset in DATASETS:
-            plot_for_dataset_model(dataset, model)
+        for dataset, suffix, title_override, rec_filter in _DATASET_PANELS:
+            plot_for_dataset_model(dataset, model,
+                                   file_suffix=suffix,
+                                   title_override=title_override,
+                                   rec_filter=rec_filter)
 
 
 if __name__ == "__main__":

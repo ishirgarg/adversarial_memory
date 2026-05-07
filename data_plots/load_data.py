@@ -162,8 +162,15 @@ def load_analysis(
 
     Each returned record is augmented with ``_k`` (the num_memories of its run),
     ``_dataset``, ``_memory`` and ``_model`` for convenience.
+
+    When multiple completed sister runs share the same (k, model) — e.g. the
+    same combo was evaluated twice on different days — only the latest one
+    contributes, to avoid double-counting questions in pooled metrics.
     """
-    out: List[Dict[str, Any]] = []
+    # Pick the latest matching run per (run_k, run_model). _list_runs returns
+    # paths sorted ascending by name (timestamps are part of the dir name), so
+    # later writes overwrite earlier ones.
+    latest: Dict[Tuple[Optional[int], Optional[str]], Tuple[Path, Optional[int], Optional[str]]] = {}
     for run_dir in _list_runs(dataset):
         sub = Path(run_dir) / memory
         if not sub.is_dir():
@@ -171,7 +178,6 @@ def load_analysis(
         analysis = _latest_analysis(sub)
         if analysis is None:
             continue
-        # Need num_memories from the corresponding graded_traces metadata.
         gt_files = sorted(sub.glob("graded_traces_*.json"))
         if not gt_files:
             continue
@@ -183,6 +189,10 @@ def load_analysis(
         run_model = memory_model(meta, memory)
         if model is not None and run_model != model:
             continue
+        latest[(run_k, run_model)] = (analysis, run_k, run_model)
+
+    out: List[Dict[str, Any]] = []
+    for (analysis, run_k, run_model) in latest.values():
         with open(analysis, "r", encoding="utf-8") as f:
             records = json.load(f)
         for r in records:
@@ -204,11 +214,15 @@ def mean_memory_tokens_per_memory(
     k: int,
     model: Optional[str] = None,
 ) -> Optional[float]:
-    """Mean (memory_tokens / k) over graded turns across all runs matching the
-    given dataset/memory/k(/model) filter. Returns None if no graded turns are
-    found."""
-    total = 0.0
-    n = 0
+    """Mean (memory_tokens / k) over graded turns matching the given
+    dataset/memory/k(/model) filter. Returns None if no graded turns are found.
+
+    When multiple completed sister runs share the same (k, model), only the
+    latest one is used (matches load_analysis behavior — avoids double-counting).
+    """
+    # Pick the latest matching run per model. _list_runs is sorted ascending by
+    # name, so later writes overwrite earlier ones.
+    latest: Dict[Optional[str], Path] = {}
     for run_dir in _list_runs(dataset):
         sub = Path(run_dir) / memory
         if not sub.is_dir():
@@ -221,12 +235,18 @@ def mean_memory_tokens_per_memory(
         run_k = meta.get("num_memories")
         if run_k != k:
             continue
-        if model is not None and memory_model(meta, memory) != model:
+        run_model = memory_model(meta, memory)
+        if model is not None and run_model != model:
             continue
         traces_files = sorted(sub.glob("traces_*.json"))
         if not traces_files:
             continue
-        with open(traces_files[-1], "r", encoding="utf-8") as f:
+        latest[run_model] = traces_files[-1]
+
+    total = 0.0
+    n = 0
+    for traces_path in latest.values():
+        with open(traces_path, "r", encoding="utf-8") as f:
             traces_blob = json.load(f)
         for res in traces_blob.get("evaluation_summary", {}).get("results", []):
             for t in res.get("traces", []):

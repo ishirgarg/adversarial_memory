@@ -41,7 +41,25 @@ def error_breakdown(records):
     return fracs, total
 
 
-def plot_dataset(dataset: str):
+# Per-dataset output files. Persona-retrieval is split into two files
+# (non-misleading and misleading) by filtering on question_type.
+# Tuple: (dataset, file_suffix, title_override_or_None, rec_filter_or_None).
+_DATASET_PANELS = [
+    ("coexisting", "coexisting", None, None),
+    ("conditional", "conditional", None, None),
+    ("conditional_hard", "conditional_hard", None, None),
+    ("persona_retrieval", "persona_retrieval_nonmisleading",
+     "Persona-Retrieval (Non-misleading)",
+     lambda r: r.get("question_type") == "base"),
+    ("persona_retrieval", "persona_retrieval_misleading",
+     "Persona-Retrieval (Misleading)",
+     lambda r: r.get("question_type") == "misleading"),
+    ("long_hop", "long_hop", None, None),
+]
+
+
+def plot_dataset(dataset: str, file_suffix: str = None,
+                 title_override: str = None, rec_filter=None):
     fig, ax = plt.subplots(figsize=(16, 6.5))
 
     bar_data = {et: [] for et in CANONICAL_ERRORS}
@@ -53,8 +71,14 @@ def plot_dataset(dataset: str):
     sep = 1.0      # extra gap between memory-system groups
     width = 1.0
 
-    for mem in MEMORY_SYSTEMS:
+    def _filtered(mem):
         recs = load_analysis(dataset, mem)
+        if rec_filter is not None:
+            recs = [r for r in recs if rec_filter(r)]
+        return recs
+
+    for mem in MEMORY_SYSTEMS:
+        recs = _filtered(mem)
         if not recs:
             continue
         grouped = group_by_k(recs)
@@ -85,7 +109,7 @@ def plot_dataset(dataset: str):
     ymin = -0.07
     cursor = 0
     for mem in MEMORY_SYSTEMS:
-        recs = load_analysis(dataset, mem)
+        recs = _filtered(mem)
         if not recs:
             continue
         ks = sorted({r["_k"] for r in recs})
@@ -101,12 +125,13 @@ def plot_dataset(dataset: str):
     ax.set_xticklabels(xtick_labels)
     ax.set_ylim(0, 1.10)
     ax.set_ylabel("Fraction of Errored Questions")
-    ax.set_title(f"Error breakdown vs. k — {DATASET_TITLES[dataset]}")
+    title = title_override if title_override is not None else DATASET_TITLES[dataset]
+    ax.set_title(f"Error breakdown vs. k — {title}")
     ax.legend(loc="lower center", bbox_to_anchor=(0.5, -0.22), ncol=4, frameon=False)
     ax.grid(True, axis="y", alpha=0.3)
 
     fig.tight_layout(pad=0.4, rect=[0, 0.05, 1, 1])
-    out = OUT_DIR / f"{dataset}.pdf"
+    out = OUT_DIR / f"{file_suffix or dataset}.pdf"
     fig.savefig(out)
     print(f"wrote {out}")
     plt.close(fig)
@@ -114,8 +139,9 @@ def plot_dataset(dataset: str):
 
 
 def main():
-    for dataset in DATASETS:
-        plot_dataset(dataset)
+    for dataset, suffix, title_override, rec_filter in _DATASET_PANELS:
+        plot_dataset(dataset, file_suffix=suffix,
+                     title_override=title_override, rec_filter=rec_filter)
 
 
 if __name__ == "__main__":

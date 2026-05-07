@@ -135,6 +135,15 @@ class Mem0MemorySystem:
                     "path": str(mem0_root / "qdrant"),
                 },
             )
+            # mem0 builds an internal "telemetry" qdrant store at
+            # `mem0_dir/migrations_qdrant` regardless of vector_store config
+            # (mem0/memory/main.py:225). Concurrent inits race on that shared
+            # path — qdrant rmtrees it on every __init__ when on_disk=False —
+            # producing sqlite "unable to open database file" crashes. Redirect
+            # it under run_dir by overriding the module-level `mem0_dir`
+            # before constructing Memory.
+            import mem0.memory.main as _mem0_main
+            _mem0_main.mem0_dir = str(mem0_root)
 
         self.memory = mem0.Memory(config=MemoryConfig(**config_kwargs))
 

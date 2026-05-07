@@ -158,7 +158,7 @@ def _plot_for_k(k: int) -> None:
         bbox_to_anchor=(0.5, -0.03), **legend_kwargs,
     )
 
-    fig.suptitle(f"Accuracy vs. Tokens/Memory — k={k}", y=0.995)
+    fig.suptitle(f"Accuracy vs. Tokens/Memory — k={k}")
     fig.tight_layout(rect=[0, 0.11, 1, 0.97])
     out = OUT_DIR / f"k{k}.pdf"
     fig.savefig(out, bbox_inches="tight", pad_inches=0.1)
