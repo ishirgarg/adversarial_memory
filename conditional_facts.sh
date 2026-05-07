@@ -260,9 +260,9 @@ cd "$SCRIPT_DIR"
 # default to the hard variant under datasets/conditional_facts/hard/.
 if [ "$DATASET_EXPLICIT" = false ]; then
     if [ "$USE_HARD" = true ]; then
-        DATASET="datasets/conditional_facts/hard/conditional_facts_dataset.csv"
+        DATASET="datasets/conditional_facts/hard/conditional_facts_dataset_hard.csv"
     else
-        DATASET="datasets/conditional_facts/easy/conditional_facts_dataset.csv"
+        DATASET="datasets/conditional_facts/easy/conditional_facts_dataset_easy.csv"
     fi
 fi
 
