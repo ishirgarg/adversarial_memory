@@ -5,7 +5,8 @@ conda activate myenv
 pip install uv
 ```
 
-Locally yyour `.env` file can have
+Locally your `.env` file should have
 ```
 OPENAI_API_KEY=
 ```
+to use OpenAI models
